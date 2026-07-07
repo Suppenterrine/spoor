@@ -99,3 +99,78 @@ Die möglichen Spalten sind zu diesem Zeitpunkt auf diese Namen festgelegt.
 | `fillword` | Wahl das Füllwort nach dem Hauptwort zu ändern | `of` |
 | `selectedFiles` | **App-Intern**: Liste mit Dateinamen von welchen Daten verwendet werden | `[ "DateiEins.csv", "DateiZwei.csv" ]` |
 | `last_used_name` | **App-Intern**: Enthält zuletzt generierte Sequenz. Stellt sicher das die nächste Sequenz eine neue ist und nicht die gleiche (Kein Nutzen für User) | `"The Hearty Unease of Agitated Destruction"` |
+
+---
+
+## Rust-Implementierung
+
+Zusätzlich zur Node.js-Version existiert eine Rust-Implementierung als Phase 0-Basis
+für die weitere Entwicklung. Sie nutzt [CLAP](https://docs.rs/clap/latest/clap/),
+[serde](https://docs.rs/serde/latest/serde/), [rusqlite](https://docs.rs/rusqlite/latest/rusqlite/),
+[csv](https://docs.rs/csv/latest/csv/), [rand_chacha](https://docs.rs/rand_chacha/latest/rand_chacha/) und
+[toml](https://docs.rs/toml/latest/toml/). Das Release-Binary liegt nach Build unter
+`target/release/name-generator.exe`.
+
+### Voraussetzungen und Setup
+
+- Toolchain installieren:
+    ```bash
+    rustc --version
+    cargo --version
+    ```
+- Build und Tests:
+    ```bash
+    cargo build --release
+    cargo test
+    ```
+
+### Konfiguration
+
+Die Rust-Variante nutzt `config.toml` im Projektroot. Beispiel:
+
+```toml
+[generator]
+prefix_article_probability = 0.2
+prefix_probability = 0.8
+suffix_article_probability = 0.3
+suffix_adjectiv_probability = 0.5
+suffix_name_probability = 0.5
+separator = " "
+fillword = "of"
+
+[db]
+path = "data/words.db"
+```
+
+Word-Daten liegen in `data/words.csv`; der Import erzeugt `data/words.db`.
+
+### Kommandozeile
+
+Unter Windows/MSYS2-Shell:
+
+```bash
+# Import aus CSV in die interne Datenbank
+target/release/name-generator.exe import
+
+# Ein oder mehrere Namen erzeugen
+target/release/name-generator.exe gen
+target/release/name-generator.exe gen --count 5
+target/release/name-generator.exe gen --seed 5a3f
+
+# Datenbankinfo anzeigen
+target/release/name-generator.exe info
+```
+
+In PowerShell/CMD kann alternativ das folgende Pattern verwendet werden:
+
+```powershell
+.\target\release\name-generator.exe import
+.\target\release\name-generator.exe gen --count 5
+```
+
+### Windows-Hinweis
+
+Pfadangaben wie `data/words.db` funktionieren weiterhin; Cargo/Rust-Stdlib akzeptieren
+sowohl `/` als auch `\`. Wenn erwünscht, können Pfade trotzdem mit Backslashes
+notiert werden. Der Import-Befehl schreibt in `data/words.db`, der Build schreibt
+nach `target/`, das wegen `/target` in `.gitignore` nicht versioniert wird.
