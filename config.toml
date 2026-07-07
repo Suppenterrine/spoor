@@ -1,0 +1,11 @@
+[generator]
+prefix_article_probability = 0.2
+prefix_probability = 0.8
+suffix_article_probability = 0.3
+suffix_adjectiv_probability = 0.5
+suffix_name_probability = 0.5
+separator = " "
+fillword = "of"
+
+[db]
+path = "data/words.db"
