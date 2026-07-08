@@ -2,6 +2,91 @@
 
 Übersicht der modularen Architektur und der Datenflüsse.
 
+## Zero-Setup: Eingebettete Basisdaten und Auto-Bootstrap
+
+Das Binary `spoor` ist sofort nach dem Download einsatzfähig — ohne Repository, ohne `config.toml`, ohne manuelle Datenbankinitialisierung.
+
+### Embedded Seed Data
+
+- `const SEED_WORDS_CSV: &str = include_str!("../data/words.csv")` in `src/lib.rs`
+- 77 kuratierte Grundwörter (natur, myth_greek, craft)
+- Enthalten bereits Etymologie, Gewichte und Mehrsprachigkeit
+- Werden zur Compile-Zeit eingebettet
+
+### Auto-Bootstrap auf Kaltstart
+
+**Bootstrap-Logik in `cli.rs` — Funktion `open_context_bootstrapped()`**:
+
+1. Config laden:
+   - Wenn `--config` nicht angegeben: Standard `config.toml` mit `explicit=false`
+   - Fehlende Config-Datei → `Config::default()` (keine Fehlermeldung)
+   - Wenn `--config` angegeben: Datei MUSS existieren, sonst Fehler
+
+2. DB-Pfad auflösen:
+   - Wenn `config.toml` da: Wert aus `[db].path` verwenden
+   - Wenn `config.toml` fehlt oder `path` leer: `default_db_path()`
+   - `default_db_path()`: `$APPDATA/spoor/words.db` (Windows) oder `~/.local/share/spoor/words.db` (Linux) oder Fallback `data/words.db`
+
+3. Elternverzeichnis erstellen:
+   - `std::fs::create_dir_all(db_path.parent())` — kein Fehler, wenn schon da
+
+4. DB öffnen/erstellen:
+   - `Db::open(db_path)` — erstellt die Datei automatisch, wenn nicht vorhanden
+
+5. **Bootstrap-Entscheidung**:
+   - Prüfe: Existiert die Datei **vor** `Db::open()`?
+   - **Nein** → Datenbankdatei ist neu:
+     - `db.import_csv_reader(SEED_WORDS_CSV.as_bytes())` — importiert 77 Wörter in einer Transaktion
+     - Gibt `ImportReport { imported, unknown_class }` zurück
+     - Schreibe zu **stderr** (nicht stdout): `"Initialized word database with N curated words at <path>"`
+     - Rückgabe: `(Config, Db, true)` — war_bootstrapped = true
+   - **Ja** → Datenbankdatei existiert bereits:
+     - Keine Aktion
+     - Rückgabe: `(Config, Db, false)` — war_bootstrapped = false
+
+**Verhalten**:
+- Erster Aufruf (z. B. `spoor find "..."` in frischem Verzeichnis):
+  - Stderr: `Initialized word database with 77 curated words at C:\Users\...\AppData\Roaming\spoor\words.db`
+  - Stdout: Suchergebnis (z. B. "zeus")
+- Zweiter Aufruf (derselbe oder anderer Befehl):
+  - **Keine** Init-Meldung (DB existiert bereits)
+  - Stdout: Ergebnis
+
+**Im Repository**:
+- `config.toml` vorhanden mit `[db] path = "data/words.db"`
+- Beim Start wird `data/words.db` verwendet (wurde bereits von Fetch importiert)
+- **Kein Bootstrap** (Datei existiert)
+
+### Prioritätsreihenfolge für Datenbank-Pfad
+
+1. Explizite `--config <PATH>` → `<PATH>` parsen, `db.path` verwenden
+2. Standard `config.toml` vorhanden → dessen `db.path` verwenden
+3. Standard `config.toml` **fehlt** → `default_db_path()` (Nutzerdatenverzeichnis)
+4. `db.path` in Config leer oder fehlt → `default_db_path()` (Fallback in serde `#[serde(default)]`)
+5. `default_db_path()` kann auch `None` sein (z. B. auf exotischen Systemen) → Fallback `data/words.db`
+
+### Code in config.rs
+
+```rust
+pub fn default_db_path() -> PathBuf {
+    dirs::data_dir()
+        .map(|d| d.join("spoor").join("words.db"))
+        .unwrap_or_else(|| PathBuf::from("data/words.db"))
+}
+
+impl Config {
+    pub fn load(path: &str, explicit: bool) -> anyhow::Result<Self> {
+        match fs::read_to_string(path) {
+            Ok(content) => { /* parse und return */ }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                if explicit { Err(...) } else { Ok(Config::default()) }
+            }
+            Err(e) => Err(e),
+        }
+    }
+}
+```
+
 ## Modulstruktur
 
 ```
@@ -359,7 +444,7 @@ pub struct Cli {
     #[command(subcommand)]
     command: Commands,
     #[arg(long, global = true)]
-    config: String,
+    config: Option<String>,  // None = use default (no error if missing)
 }
 
 #[derive(Subcommand)]
@@ -380,7 +465,30 @@ enum ListCommand {
 enum DbCommand {
     Import { path },
     Info,
+    Fetch { file, only, limit },
 }
+```
+
+**Bootstrap-Flow pro Befehl**:
+```
+Cli::run()
+    ↓
+Alle Subcommands → `open_context_bootstrapped(self.config.as_deref())`
+    ↓
+Config::load(path, explicit)
+    + default_db_path() if missing
+    + create parent dir
+    + check DB exists (vor open)
+    ↓
+Falls DB nicht existiert:
+    + import_csv_reader(SEED_WORDS_CSV)
+    + eprintln!("Initialized...")
+    + return (cfg, db, was_bootstrapped=true)
+    ↓
+Falls DB existiert:
+    + return (cfg, db, was_bootstrapped=false)
+    ↓
+Subcommand läuft (keine weitere Bootstrap-Logik nötig)
 ```
 
 **Hauptablauf für `gen`**:

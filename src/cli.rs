@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+use anyhow::Context;
 use clap::{Parser, Subcommand};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use serde::Serialize;
@@ -12,6 +13,7 @@ use crate::fetch::{fetch_all, FetchProgress, FetchReport};
 use crate::generator::{Generator, SeededRng, WordLists};
 use crate::lookup;
 use crate::sources::{load_sources, SourceSpec};
+use crate::SEED_WORDS_CSV;
 
 #[derive(Parser, Debug)]
 #[command(name = "spoor")]
@@ -25,9 +27,9 @@ pub struct Cli {
     #[command(subcommand)]
     command: Commands,
 
-    /// Path to configuration file
-    #[arg(long, global = true, default_value = "config.toml")]
-    config: String,
+    /// Path to configuration file (optional; defaults to config.toml or system data dir)
+    #[arg(long, global = true)]
+    config: Option<String>,
 }
 
 #[derive(Subcommand, Debug)]
@@ -164,7 +166,7 @@ impl Cli {
                 template,
                 format,
             } => {
-                let (cfg, db) = open_context(&self.config)?;
+                let (cfg, db, _bootstrapped) = open_context_bootstrapped(self.config.as_deref())?;
                 let words = load_wordlists(&db, systems.as_deref())?;
 
                 let generator = match template {
@@ -214,7 +216,7 @@ impl Cli {
                 explain,
                 format,
             } => {
-                let (_cfg, db) = open_context(&self.config)?;
+                let (_cfg, db, _bootstrapped) = open_context_bootstrapped(self.config.as_deref())?;
 
                 // Get records filtered by systems in SQL
                 let systems_filter = systems.map(|s| split_comma_list(&s));
@@ -262,7 +264,7 @@ impl Cli {
                 }
             }
             Commands::List(list_cmd) => {
-                let (_cfg, db) = open_context(&self.config)?;
+                let (_cfg, db, _bootstrapped) = open_context_bootstrapped(self.config.as_deref())?;
                 match list_cmd {
                     ListCommand::Systems => {
                         let systems = db.list_systems()?;
@@ -299,7 +301,7 @@ impl Cli {
             Commands::Db(db_cmd) => {
                 match db_cmd {
                     DbCommand::Import { path } => {
-                        let (_cfg, mut db) = open_context(&self.config)?;
+                        let (_cfg, mut db, _bootstrapped) = open_context_bootstrapped(self.config.as_deref())?;
                         let report = db.import_csv(&path)?;
                         println!("Imported {} words.", report.imported);
                         if report.unknown_class > 0 {
@@ -307,7 +309,7 @@ impl Cli {
                         }
                     }
                     DbCommand::Info => {
-                        let (_cfg, db) = open_context(&self.config)?;
+                        let (_cfg, db, _bootstrapped) = open_context_bootstrapped(self.config.as_deref())?;
                         let stats = db.stats()?;
                         println!("Total words: {}", stats.total);
                         println!("\nBy language:");
@@ -320,7 +322,7 @@ impl Cli {
                         }
                     }
                     DbCommand::Fetch { file, only, limit } => {
-                        let (_cfg, mut db) = open_context(&self.config)?;
+                        let (_cfg, mut db, _bootstrapped) = open_context_bootstrapped(self.config.as_deref())?;
                         let mut specs: Vec<SourceSpec> = load_sources(&file)?.sources;
 
                         if let Some(only) = only {
@@ -432,6 +434,44 @@ impl FetchProgress for CliFetchProgress {
     }
 }
 
+/// Open database with auto-bootstrap logic. Returns (Config, Db, was_bootstrapped).
+/// If the DB file doesn't exist, seeds it with embedded CSV and prints init message to stderr.
+fn open_context_bootstrapped(config: Option<&str>) -> anyhow::Result<(Config, Db, bool)> {
+    let (path, explicit) = match config {
+        Some(p) => (p, true),
+        None => ("config.toml", false),
+    };
+
+    let cfg = Config::load(path, explicit)?;
+    let db_path = &cfg.db.path;
+
+    // Check if DB file exists before opening
+    let db_exists = db_path.exists();
+
+    // Create parent directory if needed
+    if let Some(parent) = db_path.parent() {
+        std::fs::create_dir_all(parent)
+            .with_context(|| format!("failed to create parent directory for {}", db_path.display()))?;
+    }
+
+    let mut db = Db::open(db_path)?;
+
+    if !db_exists {
+        // Bootstrap: import seed data
+        let report = db.import_csv_reader(SEED_WORDS_CSV.as_bytes())?;
+        eprintln!(
+            "Initialized word database with {} curated words at {}",
+            report.imported,
+            db_path.display()
+        );
+        Ok((cfg, db, true))
+    } else {
+        Ok((cfg, db, false))
+    }
+}
+
+/// Legacy function for backward compatibility (no bootstrap)
+#[allow(dead_code)]
 fn open_context(config_path: &str) -> anyhow::Result<(Config, Db)> {
     let cfg = Config::read(Path::new(config_path))?;
     let db = Db::open(PathBuf::from(&cfg.db.path))?;

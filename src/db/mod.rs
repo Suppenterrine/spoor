@@ -1,3 +1,4 @@
+use std::io::Read;
 use std::path::Path;
 
 use anyhow::Context;
@@ -179,10 +180,10 @@ impl Db {
         Ok(())
     }
 
-    /// Stream-import CSV file into database. Counts unrecognized word_class values.
+    /// Stream-import CSV data from a reader into database. Counts unrecognized word_class values.
     /// Valid word classes: prefix, noun, proper, adj, suffix, suffix_noun
-    pub fn import_csv(&mut self, path: impl AsRef<Path>) -> anyhow::Result<ImportReport> {
-        let reader = csv::Reader::from_path(path).context("failed to open CSV file")?;
+    pub fn import_csv_reader<R: Read>(&mut self, reader_input: R) -> anyhow::Result<ImportReport> {
+        let reader = csv::Reader::from_reader(reader_input);
         let tx = self.conn.transaction().context("failed to start import transaction")?;
         let mut stmt = tx
             .prepare(INSERT_WORD_SQL)
@@ -216,6 +217,13 @@ impl Db {
             imported,
             unknown_class,
         })
+    }
+
+    /// Stream-import a CSV file into the database (thin wrapper over
+    /// `import_csv_reader`, which holds the single parsing loop).
+    pub fn import_csv(&mut self, path: impl AsRef<Path>) -> anyhow::Result<ImportReport> {
+        let file = std::fs::File::open(path).context("failed to open CSV file")?;
+        self.import_csv_reader(file)
     }
 
     /// Map a database row to a WordRecord

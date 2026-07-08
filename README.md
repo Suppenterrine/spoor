@@ -28,17 +28,33 @@ cargo build --release
 
 Das Binary liegt danach unter `target/release/spoor` (Windows: `spoor.exe`, ~5 MB, keine Laufzeitabhängigkeiten).
 
+**Das Binary funktioniert sofort nach dem Download — ohne zusätzliche Konfiguration oder Datenbankinitialisierung.** Die Basisdaten sind eingebettet und werden beim ersten Aufruf automatisch im Nutzer-Datenverzeichnis angelegt.
+
 ## Schnellstart
 
+Das Binary ist sofort einsatzfähig, ohne vorbereitende Schritte:
+
 ```bash
-# 1. Wortdatenbank aus der mitgelieferten CSV aufbauen (erzeugt data/words.db)
+# 1. Reverse-Lookup: Einen Namen für einen Anwendungsfall finden
+spoor find "forest tree" --explain
+# Ausgabe beim 1. Aufruf: Initialized word database... [dann: silvan — ...]
+# Ausgabe beim 2. Aufruf: silvan — ... (ohne Init-Meldung)
+
+# 2. Zufällige Namen generieren — reproduzierbar über den Seed
+spoor gen --seed 42 --count 5
+
+# 3. Datenbankstatistik
+spoor db info
+```
+
+Im Repository können die Basisdaten erweitert werden:
+
+```bash
+# Optional: Wortdatenbank aus erweiterter CSV importieren
 spoor db import data/words.csv
 
-# 2. Einen Namen für einen Anwendungsfall finden (Reverse-Lookup)
-spoor find "forest tree" --explain
-
-# 3. Zufällige Namen generieren — reproduzierbar über den Seed
-spoor gen --seed 42 --count 5
+# Optional: Wörter von Online-Wörterbüchern laden
+spoor db fetch --only kaikki-de --limit 100
 ```
 
 ## Kommandos

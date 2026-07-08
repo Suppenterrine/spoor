@@ -22,12 +22,55 @@ Die CLI folgt einer hierarchischen Subcommand-Struktur:
   - **fetch** — Wortquellen aus `sources.yaml` per HTTP herunterladen und importieren
 - **help** — Hilfe für ein Kommando anzeigen
 
+## Zero-Setup: Direkt nach dem Download funktioniert spoor
+
+Das Binary ist **sofort einsatzfähig**. Es gibt keine Abhängigkeiten oder manuelle Initialisierung:
+
+- **Embedded Seed Data**: 77 kuratierte Grundwörter sind im Binary enthalten
+- **Auto-Bootstrap**: Beim ersten Aufruf wird die Datenbank automatisch im Nutzer-Datenverzeichnis angelegt und mit den Basisdaten initialisiert
+- **Optional Config**: `config.toml` ist optional. Ohne Datei werden vernünftige Standardwerte verwendet
+- **System-Integration**: Datenbankpfad wird im Nutzer-Datenverzeichnis erstellt (z. B. `~/.local/share/spoor/` auf Linux, `%APPDATA%/spoor/` auf Windows)
+
+**Beispiel — Kaltstart**:
+```bash
+./spoor find "sky thunder king"
+```
+
+Ausgabe (erster Aufruf):
+```
+Initialized word database with 77 curated words at C:\Users\...\AppData\Roaming\spoor\words.db
+zeus
+```
+
+Ausgabe (zweiter Aufruf — keine Init-Meldung mehr):
+```
+zeus
+```
+
 ### Globale Optionen
 
 ```
 --config <CONFIG>
 ```
-Pfad zur Konfigurationsdatei. Standardwert: `config.toml`. Die Datei enthält Wahrscheinlichkeitskonfigurationen und den Datenbankpfad.
+Pfad zur Konfigurationsdatei. Standardwert: `config.toml`.
+- **Wenn die Datei existiert**: wird verwendet (Wahrscheinlichkeiten + Datenbankpfad)
+- **Wenn die Datei fehlt und nicht explizit angegeben**: Standardwerte werden verwendet (keine Fehlermeldung)
+- **Wenn die Datei fehlt und explizit angegeben (`--config /pfad/datei.toml`)**: Fehler
+
+Die Datei enthält Wahrscheinlichkeitskonfigurationen und den Datenbankpfad:
+```toml
+[generator]
+prefix_article_probability = 0.2
+prefix_probability = 0.8
+suffix_article_probability = 0.3
+suffix_adjectiv_probability = 0.5
+suffix_name_probability = 0.5
+separator = " "
+fillword = "of"
+
+[db]
+path = "data/words.db"  # optional; Standard: Nutzer-Datenverzeichnis
+```
 
 ```
 -h, --help

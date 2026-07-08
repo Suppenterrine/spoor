@@ -13,3 +13,6 @@ pub use lookup::{Match as LookupMatch};
 
 pub use anyhow::Result;
 pub use anyhow::anyhow;
+
+/// Embedded seed data (77 curated words)
+pub const SEED_WORDS_CSV: &str = include_str!("../data/words.csv");

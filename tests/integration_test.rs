@@ -5,6 +5,7 @@ use tempfile::TempDir;
 use spoor::db::Db;
 use spoor::config::Config;
 use spoor::generator::{Generator, SeededRng, WordLists};
+use spoor::SEED_WORDS_CSV;
 
 #[test]
 fn csv_import_db_insert_and_deterministic_generate() {
@@ -43,7 +44,7 @@ fn csv_import_db_insert_and_deterministic_generate() {
             fillword: "of".into(),
         },
         db: spoor::config::DbConfig {
-            path: db_path.display().to_string(),
+            path: db_path,
         },
     };
 
@@ -459,4 +460,72 @@ fn import_csv_streams_and_counts() {
     // Verify etymology was preserved
     let alpha = all.iter().find(|r| r.word == "alpha").unwrap();
     assert_eq!(alpha.etymology, Some("from Greek alpha".to_string()));
+}
+
+#[test]
+fn import_csv_reader_from_in_memory_string() {
+    let dir = TempDir::new().unwrap();
+    let db_path = dir.path().join("words.db");
+
+    let csv_data = "word,language,word_class,system,tags,seed_weight,source,etymology,origin_lang
+alpha,en,noun,nature,test,1.0,wiki,from Greek alpha,Greek
+beta,en,proper,nature,boss,1.2,curated,,
+gamma,en,prefix,nature,letter,1.0,curated,,";
+
+    let mut db = Db::open(&db_path).unwrap();
+    let report = db.import_csv_reader(csv_data.as_bytes()).unwrap();
+
+    assert_eq!(report.imported, 3);
+    assert_eq!(report.unknown_class, 0);
+
+    // Verify the rows are queryable
+    let all = db.all_records(None).unwrap();
+    assert_eq!(all.len(), 3);
+    assert!(all.iter().any(|r| r.word == "alpha"));
+    assert!(all.iter().any(|r| r.word == "beta"));
+    assert!(all.iter().any(|r| r.word == "gamma"));
+}
+
+#[test]
+fn bootstrap_with_embedded_seed_data() {
+    let dir = TempDir::new().unwrap();
+    let db_path = dir.path().join("words.db");
+
+    // First call: DB doesn't exist, should bootstrap
+    {
+        let mut db = Db::open(&db_path).unwrap();
+        let report = db.import_csv_reader(SEED_WORDS_CSV.as_bytes()).unwrap();
+
+        // Should have imported 77 words (header + 77 data rows)
+        assert_eq!(report.imported, 77);
+    }
+
+    // Verify the DB was created and seeded
+    assert!(db_path.exists());
+    let db = Db::open(&db_path).unwrap();
+    let stats = db.stats().unwrap();
+    assert_eq!(stats.total, 77);
+
+    // Second call: DB exists, should not re-seed (this is tested by not calling import again)
+    let db2 = Db::open(&db_path).unwrap();
+    let stats2 = db2.stats().unwrap();
+    assert_eq!(stats2.total, 77); // Still 77, not 154
+}
+
+#[test]
+fn seed_words_csv_has_correct_header() {
+    // Verify the embedded CSV starts with the expected header
+    let lines: Vec<&str> = SEED_WORDS_CSV.lines().collect();
+    assert!(!lines.is_empty());
+
+    let header = lines[0];
+    assert!(header.contains("word"));
+    assert!(header.contains("language"));
+    assert!(header.contains("word_class"));
+    assert!(header.contains("system"));
+    assert!(header.contains("tags"));
+    assert!(header.contains("seed_weight"));
+    assert!(header.contains("source"));
+    assert!(header.contains("etymology"));
+    assert!(header.contains("origin_lang"));
 }
