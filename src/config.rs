@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use anyhow::Context;
 use serde::Deserialize;
@@ -41,9 +41,5 @@ impl Config {
             )
         })?;
         Ok(cfg)
-    }
-
-    pub fn default_path() -> PathBuf {
-        PathBuf::from("config.toml")
     }
 }

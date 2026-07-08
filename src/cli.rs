@@ -74,14 +74,17 @@ impl Cli {
                 seed,
                 count,
                 systems,
-                template: _,
+                template,
                 format,
                 config,
             } => {
                 let (cfg, db) = open_context(&config)?;
                 let words = load_wordlists(&db, systems.as_deref())?;
 
-                let generator = Generator::new(&cfg, words);
+                let generator = match template {
+                    Some(t) => Generator::with_template(&cfg, words, &t)?,
+                    None => Generator::new(&cfg, words),
+                };
                 let mut names = Vec::with_capacity(count);
                 let mut used = HashSet::new();
 
@@ -90,8 +93,17 @@ impl Cli {
                 let mut srng = SeededRng::new(seed);
 
                 for _ in 0..count {
-                    let name = generator.generate_one(&mut srng, &mut used);
-                    names.push(name);
+                    match generator.generate_unique(&mut srng, &mut used, 100) {
+                        Some(name) => names.push(name),
+                        None => {
+                            if names.is_empty() {
+                                return Err(anyhow::anyhow!("no words available - import data first (name-generator import data/words.csv)"));
+                            } else {
+                                eprintln!("Warning: only {} unique names were possible; stopping early", names.len());
+                                break;
+                            }
+                        }
+                    }
                 }
 
                 if format == "json" {
