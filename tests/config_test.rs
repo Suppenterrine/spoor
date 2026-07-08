@@ -30,7 +30,7 @@ fn config_load_missing_file_explicit_true_returns_error() {
 
     assert!(result.is_err());
     let err = result.unwrap_err().to_string();
-    assert!(err.contains("explicitly specified"));
+    assert!(err.contains("explizit mit --config angegeben"));
 }
 
 #[test]

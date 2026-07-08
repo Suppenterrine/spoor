@@ -85,7 +85,7 @@ impl Config {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
                 if explicit {
                     Err(anyhow::anyhow!(
-                        "Config file not found: {} (explicitly specified)",
+                        "Konfigurationsdatei nicht gefunden: {} (explizit mit --config angegeben)\n\nHinweis: Ohne --config nutzt spoor eingebaute Defaults - einfach das Flag weglassen.",
                         path
                     ))
                 } else {

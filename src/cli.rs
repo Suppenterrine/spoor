@@ -18,21 +18,19 @@ use crate::SEED_WORDS_CSV;
 #[derive(Parser, Debug)]
 #[command(name = "spoor")]
 #[command(version)]
-#[command(about = "Generates themed names from a local word database")]
-#[command(arg_required_else_help = true)]
-#[command(subcommand_required = true)]
+#[command(about = "spoor — findet Namen ueber Bedeutung (find) und generiert sie reproduzierbar (gen)")]
 #[command(propagate_version = true)]
-#[command(after_help = "For more information, see docs/reference/cli.md")]
+#[command(after_help = "ARBEITSMODELL:\n  spoor find <beschreibung>   Reverse-Lookup: Bedeutung -> ein passendes Wort mit Herkunft\n  spoor gen --seed <n>         Reproduzierbare Namen-Generierung nach Seed\n  spoor db fetch               Optionale Erweiterung des Wortbestands aus Online-Quellen\n\nWeitere Kommandos und Optionen: spoor help")]
 pub struct Cli {
     #[command(subcommand)]
-    command: Commands,
+    command: Option<Commands>,
 
     /// Path to configuration file (optional; defaults to config.toml or system data dir)
     #[arg(long, global = true)]
     config: Option<String>,
 }
 
-#[derive(Subcommand, Debug)]
+#[derive(Subcommand, Debug, Clone)]
 enum Commands {
     /// Generate one or more names
     #[command(after_help = "EXAMPLES:\n  Generate 1 name with a random seed:\n    spoor gen\n\n  Generate 3 names with seed 42:\n    spoor gen --seed 42 --count 3\n\n  Generate names only from the 'nature' system:\n    spoor gen --systems nature --count 5")]
@@ -58,7 +56,7 @@ enum Commands {
         format: String,
     },
     /// Find a single fitting word for a use-case description
-    #[command(after_help = "EXAMPLES:\n  Find a word for 'sky thunder king':\n    spoor find \"sky thunder king\"\n\n  Find 3 German words with explanations:\n    spoor find \"Werkzeug für Wald und Baum\" --count 3 --explain")]
+    #[command(after_help = "EXAMPLES:\n  Find a word for 'sky thunder king' with etymology:\n    spoor find \"sky thunder king\" --explain\n\n  Find 3 German words for 'Werkzeug für Wald und Baum':\n    spoor find \"Werkzeug fuer Wald und Baum\" --count 3 --explain")]
     Find {
         /// Use-case description (one quoted string)
         query: String,
@@ -87,7 +85,7 @@ enum Commands {
     Db(DbCommand),
 }
 
-#[derive(Subcommand, Debug)]
+#[derive(Subcommand, Debug, Clone)]
 enum ListCommand {
     /// List all systems with word counts
     Systems,
@@ -107,7 +105,7 @@ enum ListCommand {
     },
 }
 
-#[derive(Subcommand, Debug)]
+#[derive(Subcommand, Debug, Clone)]
 enum DbCommand {
     /// Import a CSV into the database
     Import {
@@ -158,7 +156,19 @@ struct FindOutput {
 
 impl Cli {
     pub fn run(self) -> anyhow::Result<()> {
-        match self.command {
+        match self.command.clone() {
+            None => {
+                // Bare invocation: show status screen
+                let (cfg, db, _bootstrapped) = open_context_bootstrapped(self.config.as_deref())?;
+                print_status_screen(&db, &cfg.db.path)?;
+                Ok(())
+            }
+            Some(cmd) => self.handle_command(cmd),
+        }
+    }
+
+    fn handle_command(&self, command: Commands) -> anyhow::Result<()> {
+        match command {
             Commands::Gen {
                 seed,
                 count,
@@ -226,7 +236,13 @@ impl Cli {
                 let matches = lookup::rank(&records, &query);
 
                 if matches.is_empty() {
-                    eprintln!("no matches - try other keywords or import more data");
+                    let hint = if systems_filter.is_some() {
+                        "es ohne --systems zu versuchen, um mehr Treffer zu finden"
+                    } else {
+                        "spoor db fetch --limit 1000 auszufuehren, um mehr Woerter zu laden"
+                    };
+                    eprintln!("Keine Treffer fuer '{}'.", query);
+                    eprintln!("Naechster Schritt: {} oder mit anderen Schluesseln suchen", hint);
                     std::process::exit(1);
                 }
 
@@ -302,6 +318,12 @@ impl Cli {
                 match db_cmd {
                     DbCommand::Import { path } => {
                         let (_cfg, mut db, _bootstrapped) = open_context_bootstrapped(self.config.as_deref())?;
+                        if !path.exists() {
+                            return Err(anyhow::anyhow!(
+                                "Datei nicht gefunden: {}\n\nBitte ueberpruefen Sie den Pfad und versuchen Sie es erneut.",
+                                path.display()
+                            ));
+                        }
                         let report = db.import_csv(&path)?;
                         println!("Imported {} words.", report.imported);
                         if report.unknown_class > 0 {
@@ -323,7 +345,15 @@ impl Cli {
                     }
                     DbCommand::Fetch { file, only, limit } => {
                         let (_cfg, mut db, _bootstrapped) = open_context_bootstrapped(self.config.as_deref())?;
-                        let mut specs: Vec<SourceSpec> = load_sources(&file)?.sources;
+                        let mut specs: Vec<SourceSpec> = match load_sources(&file) {
+                            Ok(sources) => sources.sources,
+                            Err(_) => {
+                                return Err(anyhow::anyhow!(
+                                    "Quellendatei nicht gefunden: {}\n\nsources.yaml sollte sich im Repository-Verzeichnis befinden.\n\nHinweis: Sie koennen auch ohne externe Quellen arbeiten und mehr Woerter mit 'spoor db import <csv>' hinzufuegen.",
+                                    file
+                                ));
+                            }
+                        };
 
                         if let Some(only) = only {
                             let wanted: HashSet<String> = split_comma_list(&only).into_iter().collect();
@@ -432,6 +462,38 @@ impl FetchProgress for CliFetchProgress {
             bar.finish_with_message(msg.to_string());
         }
     }
+}
+
+/// Print a German status screen showing database stats and usage hints
+fn print_status_screen(db: &Db, db_path: &std::path::Path) -> anyhow::Result<()> {
+    let stats = db.stats()?;
+    let version = env!("CARGO_PKG_VERSION");
+
+    // Format language summary: top 4 languages with counts
+    let mut lang_summary = String::new();
+    for (i, (lang, count)) in stats.by_language.iter().take(4).enumerate() {
+        if i > 0 {
+            lang_summary.push_str(" · ");
+        }
+        lang_summary.push_str(&format!("{} {}", lang, count));
+    }
+    if stats.by_language.len() > 4 {
+        lang_summary.push_str(" · ...");
+    }
+
+    println!("spoor {} — folge der Bedeutung zum Namen\n", version);
+    println!("  Wortbestand: {} Woerter ({})", stats.total, lang_summary);
+    println!("  Datenbank:   {}\n", db_path.display());
+    println!("WOMIT MOECHTEST DU STARTEN?\n");
+    println!("  Einen Namen zum Anwendungsfall finden:");
+    println!("    spoor find \"werkzeug fuer wald und baum\" --explain\n");
+    println!("  Zufaellige Namen generieren (reproduzierbar):");
+    println!("    spoor gen --seed 42 --count 5\n");
+    println!("  Mehr Woerter laden (kaikki.org, konfiguriert in sources.yaml):");
+    println!("    spoor db fetch --limit 1000\n");
+    println!("Alle Kommandos: spoor help");
+
+    Ok(())
 }
 
 /// Open database with auto-bootstrap logic. Returns (Config, Db, was_bootstrapped).

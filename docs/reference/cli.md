@@ -2,6 +2,46 @@
 
 Vollständige Referenz aller CLI-Kommandos und Optionen.
 
+> Alle Beispielausgaben in diesem Dokument beruhen auf dem eingebetteten Basisbestand (77 kuratierte Wörter, frische Installation). Nach `spoor db fetch` wächst der Bestand — Trefferlisten und `gen`-Ausgaben fallen dann anders aus (bei gleichem Seed und gleichem Bestand aber stets reproduzierbar).
+
+## Einstiegspunkt: Bare Invocation (keine Argumente)
+
+```bash
+$ spoor
+```
+
+Zeigt einen Statusbildschirm mit Anleitung (Beispiel: frische Installation mit den 77 eingebetteten Basiswörtern):
+
+```
+spoor 0.1.0 — folge der Bedeutung zum Namen
+
+  Wortbestand: 77 Woerter (en 36 · la 23 · de 18)
+  Datenbank:   C:/Users/du/AppData/Roaming/spoor/words.db
+
+WOMIT MOECHTEST DU STARTEN?
+
+  Einen Namen zum Anwendungsfall finden:
+    spoor find "werkzeug fuer wald und baum" --explain
+
+  Zufaellige Namen generieren (reproduzierbar):
+    spoor gen --seed 42 --count 5
+
+  Mehr Woerter laden (kaikki.org, konfiguriert in sources.yaml):
+    spoor db fetch --limit 1000
+
+Alle Kommandos: spoor help
+```
+
+Der Bildschirm zeigt:
+- **Versionsnummer**
+- **Wortbestandstatistik** (Gesamtzahl + Sprachen-Verteilung)
+- **Drei häufigste Anwendungsfälle** mit Befehlen zum Kopieren
+- **Verweis auf `spoor help`** für alle Kommandos
+
+Exit-Code: **0** (Erfolg)
+
+---
+
 ## Übersicht
 
 ```
@@ -260,7 +300,7 @@ wald — ahd. wald, germ. *walþuz (goh) · System: nature · Treffer: wald (wor
 silvan — lat. silva 'Wald' (la) · System: nature · Treffer: wald (etymology)
 ```
 
-Das Token "wald" wird zu Stoppworten gefiltert. Das verbleibende "werkzeug" matcht mit "silvan" via Etymologie.
+Stoppwörter ("für", "und") werden gefiltert; "wald" trifft das Wort selbst und die Etymologien beider Ergebnisse.
 
 #### Beispiel 3: JSON-Ausgabe
 
@@ -587,10 +627,14 @@ Mit `--config <DATEI>` kann eine alternative Konfiguration verwendet werden.
 
 ## Fehlerbehandlung
 
-| Fehler | Ursache | Lösung |
+| Fehler | Ursache | Naechster Schritt |
 |--------|--------|--------|
-| `no words available - import data first` | Datenbank ist leer | `spoor db import data/words.csv` ausführen |
-| `Failed to read config file` | `config.toml` nicht gefunden | Datei erstellen oder `--config` angeben |
+| `Keine Treffer fuer '<query>'` + Naechster Schritt: `es ohne --systems zu versuchen` | Query hat mit aktuellem System-Filter keine Treffer | `--systems`-Filter entfernen und erneut suchen |
+| `Keine Treffer fuer '<query>'` + Naechster Schritt: `spoor db fetch --limit 1000` | Query hat generell keine Treffer im gesamten Bestand | Mit `spoor db fetch --limit 1000` mehr Woerter laden oder andere Schluesselbegriffe ausprobieren |
+| `no words available - import data first` | Datenbank ist vollstaendig leer | `spoor db import data/words.csv` ausführen |
+| `Datei nicht gefunden: <path>` | `spoor db import` erhielt einen ungültigen Dateipfad | Pfad überprüfen und korrekt angeben |
+| `Quellendatei nicht gefunden: sources.yaml` | `sources.yaml` für `spoor db fetch` nicht vorhanden | Datei im Repository anlegen oder mit `--file <path>` korrekten Pfad angeben |
+| `Failed to read config file` | `config.toml` nicht gefunden (wenn explizit mit `--config` angegeben) | Datei erstellen oder Pfad überprüfen. Hinweis: ohne `--config` nutzt spoor eingebaute Defaults |
 | `Unknown placeholder: {foo}` | Ungültiger Platzhalter im Template | Nur `{prefix}`, `{word}`, `{suffix_adj}`, `{suffix}` verwenden |
 | `only N unique names were possible` | Zu wenig Wörter für --count | `--count` reduzieren oder mehr Wörter importieren |
 | `✖` bei `db fetch` mit Fehlermeldung | Netzwerkfehler, Timeout oder ungültige URL für eine Quelle | Internetverbindung prüfen, URL in `sources.yaml` korrigieren; andere Quellen sind davon nicht betroffen |

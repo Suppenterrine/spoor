@@ -57,6 +57,62 @@ spoor db import data/words.csv
 spoor db fetch --only kaikki-de --limit 100
 ```
 
+## Arbeitsmodell
+
+spoor funktioniert nach zwei Fokusmodalitäten:
+
+**1. Finden (spoor find)**  
+Der Northstar-Weg: Man beschreibt eine Bedeutung oder einen Anwendungsfall in Schlüsselwörtern, spoor durchsucht den lokalen Wortbestand und findet *ein passendes Wort* mit seiner etymologischen Herkunft. Dies ist Reverse-Lookup.
+
+```console
+$ spoor find "sky thunder king" --explain
+zeus — griech. Zeus, idg. *dyeus 'Himmel, Tag' (grc) · System: myth_greek · Treffer: sky (tag), thunder (tag), king (tag)
+```
+
+**2. Generieren (spoor gen)**  
+Seed-deterministische Erzeugung von Namenskombinationen aus dem Wortbestand. Ein fester Seed (`--seed 42`) ergibt immer die gleiche Abfolge; ohne Seed wird einer zufällig generiert und ausgegeben. Basis sind Wortklassen (Prefix, Noun, Suffix) und konfigurierbare Wahrscheinlichkeiten.
+
+```console
+$ spoor gen --seed 42 --count 3
+Wandering atlas of Essenz
+Heilig silvan
+The Iron apex of the verborgen Dawn
+```
+
+**Der Datenkreislauf**  
+- **Eingebettete Basisdaten (77 Worte)**: Werden beim ersten Aufruf automatisch aus dem Binary ins System-Datenbankverzeichnis importiert. Man kann sofort `find` und `gen` nutzen.
+- **Optionale Erweiterung**: `spoor db fetch --limit 1000` lädt weitere Wörter von Online-Wörterbüchern (konfiguriert in `sources.yaml`).
+- **Arbeitsfeld**: `find` und `gen` operieren auf dem aktuellen Bestand. Mit `spoor list languages|systems` kann man den Datenbestand erkunden.
+
+Eine typische Session (frische Installation, 77 eingebettete Basiswörter — nach `db fetch` zeigen Zahlen und Treffer den gewachsenen Bestand):
+
+```console
+$ spoor
+spoor 0.1.0 — folge der Bedeutung zum Namen
+
+  Wortbestand: 77 Woerter (en 36 · la 23 · de 18)
+  Datenbank:   C:/Users/du/AppData/Roaming/spoor/words.db
+
+WOMIT MOECHTEST DU STARTEN?
+
+  Einen Namen zum Anwendungsfall finden:
+    spoor find "werkzeug fuer wald und baum" --explain
+
+  Zufaellige Namen generieren (reproduzierbar):
+    spoor gen --seed 42 --count 5
+
+  Mehr Woerter laden (kaikki.org, konfiguriert in sources.yaml):
+    spoor db fetch --limit 1000
+
+Alle Kommandos: spoor help
+
+$ spoor find "werkzeug fuer wald und baum" --explain
+wald — ahd. wald, germ. *walþuz (goh) · System: nature · Treffer: wald (word), wald (etymology)
+
+$ spoor gen --seed 42 --count 1
+Wandering atlas of Essenz
+```
+
 ## Kommandos
 
 | Kommando | Zweck |
@@ -93,7 +149,7 @@ Vollständige Referenz: [docs/reference/cli.md](docs/reference/cli.md)
 ## Entwicklung
 
 ```bash
-cargo test          # 17 Tests, u.a. Determinismus, Migration, Lookup-Ranking
+cargo test          # 49 Tests, u.a. Determinismus, Migration, Lookup-Ranking, CLI-Integration
 cargo build --release
 ```
 

@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use std::fs;
+use std::process::Command;
 use tempfile::TempDir;
 
 use spoor::db::Db;
@@ -528,4 +529,46 @@ fn seed_words_csv_has_correct_header() {
     assert!(header.contains("source"));
     assert!(header.contains("etymology"));
     assert!(header.contains("origin_lang"));
+}
+
+#[test]
+fn bare_invocation_shows_status_screen() {
+    let dir = TempDir::new().unwrap();
+    let db_path = dir.path().join("words.db");
+    let config_path = dir.path().join("config.toml");
+
+    // Create a minimal config pointing to the test database
+    let config_content = format!(
+        "[db]\npath = \"{}\"",
+        db_path.display().to_string().replace('\\', "\\\\")
+    );
+    fs::write(&config_path, config_content).unwrap();
+
+    // Seed the database
+    {
+        let mut db = Db::open(&db_path).unwrap();
+        db.import_csv_reader(SEED_WORDS_CSV.as_bytes()).unwrap();
+    }
+
+    // Run `spoor` with no args using the binary
+    let output = Command::new(env!("CARGO_BIN_EXE_spoor"))
+        .arg("--config")
+        .arg(&config_path)
+        .env("NO_COLOR", "1")
+        .output()
+        .expect("failed to execute spoor binary");
+
+    // Check exit code is 0
+    assert!(output.status.success(), "Exit code should be 0, got: {:?}", output.status);
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    // Verify key strings from the status screen are present
+    assert!(stdout.contains("spoor"), "Should contain version info");
+    assert!(stdout.contains("folge der Bedeutung zum Namen"), "Should have German tagline");
+    assert!(stdout.contains("Wortbestand"), "Should show word inventory");
+    assert!(stdout.contains("WOMIT MOECHTEST DU STARTEN?"), "Should have German prompt");
+    assert!(stdout.contains("spoor find"), "Should mention find command");
+    assert!(stdout.contains("spoor gen"), "Should mention gen command");
+    assert!(stdout.contains("spoor db fetch"), "Should mention db fetch command");
 }
