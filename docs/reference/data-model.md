@@ -1,10 +1,10 @@
-# Datenmodell — Name Generator
+# Datenmodell — spoor
 
 Beschreibung des CSV-Formats, des SQLite-Schemas und der Duplikat-Vermeidung.
 
 ## CSV-Format
 
-Eingabedatei für `name-generator db import <CSV>`. Beispiel: `data/words.csv`
+Eingabedatei für `spoor db import <CSV>`. Beispiel: `data/words.csv`
 
 ### Spalten
 
@@ -88,7 +88,7 @@ Zukünftig: Für Quellenangabe in Erklärungen (Phase 3+).
 
 ## sources.yaml — Konfiguration für `db fetch`
 
-Eingabedatei für `name-generator db fetch [--file <PATH>]`. Standardpfad: `sources.yaml` im Projektwurzelverzeichnis. Beschreibt Online-Wortquellen, die per HTTP gestreamt und geparst werden (siehe `docs/reference/architecture.md`, Abschnitt "fetch-Modul").
+Eingabedatei für `spoor db fetch [--file <PATH>]`. Standardpfad: `sources.yaml` im Projektwurzelverzeichnis. Beschreibt Online-Wortquellen, die per HTTP gestreamt und geparst werden (siehe `docs/reference/architecture.md`, Abschnitt "fetch-Modul").
 
 ### Format
 

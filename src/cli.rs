@@ -14,7 +14,7 @@ use crate::lookup;
 use crate::sources::{load_sources, SourceSpec};
 
 #[derive(Parser, Debug)]
-#[command(name = "name-generator")]
+#[command(name = "spoor")]
 #[command(version)]
 #[command(about = "Generates themed names from a local word database")]
 #[command(arg_required_else_help = true)]
@@ -33,7 +33,7 @@ pub struct Cli {
 #[derive(Subcommand, Debug)]
 enum Commands {
     /// Generate one or more names
-    #[command(after_help = "EXAMPLES:\n  Generate 1 name with a random seed:\n    name-generator gen\n\n  Generate 3 names with seed 42:\n    name-generator gen --seed 42 --count 3\n\n  Generate names only from the 'nature' system:\n    name-generator gen --systems nature --count 5")]
+    #[command(after_help = "EXAMPLES:\n  Generate 1 name with a random seed:\n    spoor gen\n\n  Generate 3 names with seed 42:\n    spoor gen --seed 42 --count 3\n\n  Generate names only from the 'nature' system:\n    spoor gen --systems nature --count 5")]
     Gen {
         /// Seed for deterministic generation
         #[arg(long)]
@@ -56,7 +56,7 @@ enum Commands {
         format: String,
     },
     /// Find a single fitting word for a use-case description
-    #[command(after_help = "EXAMPLES:\n  Find a word for 'sky thunder king':\n    name-generator find \"sky thunder king\"\n\n  Find 3 German words with explanations:\n    name-generator find \"Werkzeug für Wald und Baum\" --count 3 --explain")]
+    #[command(after_help = "EXAMPLES:\n  Find a word for 'sky thunder king':\n    spoor find \"sky thunder king\"\n\n  Find 3 German words with explanations:\n    spoor find \"Werkzeug für Wald und Baum\" --count 3 --explain")]
     Find {
         /// Use-case description (one quoted string)
         query: String,
@@ -115,7 +115,7 @@ enum DbCommand {
     /// Database statistics
     Info,
     /// Download and import word sources over the network (see sources.yaml)
-    #[command(after_help = "EXAMPLES:\n  Fetch all configured sources:\n    name-generator db fetch\n\n  Fetch only one source, capped at 50 words:\n    name-generator db fetch --only kaikki-la --limit 50")]
+    #[command(after_help = "EXAMPLES:\n  Fetch all configured sources:\n    spoor db fetch\n\n  Fetch only one source, capped at 50 words:\n    spoor db fetch --only kaikki-la --limit 50")]
     Fetch {
         /// Path to the sources.yaml file
         #[arg(long, default_value = "sources.yaml")]
@@ -183,7 +183,7 @@ impl Cli {
                         Some(name) => names.push(name),
                         None => {
                             if names.is_empty() {
-                                return Err(anyhow::anyhow!("no words available - import data first (name-generator db import data/words.csv)"));
+                                return Err(anyhow::anyhow!("no words available - import data first (spoor db import data/words.csv)"));
                             } else {
                                 eprintln!("Warning: only {} unique names were possible; stopping early", names.len());
                                 break;

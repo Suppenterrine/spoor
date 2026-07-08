@@ -1,11 +1,11 @@
-# Kommandoreferenz — Name Generator
+# Kommandoreferenz — spoor
 
 Vollständige Referenz aller CLI-Kommandos und Optionen.
 
 ## Übersicht
 
 ```
-name-generator [GLOBAL-OPTIONS] <COMMAND>
+spoor [GLOBAL-OPTIONS] <COMMAND>
 ```
 
 Die CLI folgt einer hierarchischen Subcommand-Struktur:
@@ -48,7 +48,7 @@ Generiert ein oder mehrere zufällige Namen aus der Wortdatenbank.
 ### Syntax
 
 ```
-name-generator gen [OPTIONS]
+spoor gen [OPTIONS]
 ```
 
 ### Optionen
@@ -78,7 +78,7 @@ Die folgenden Platzhalter können in `--template` verwendet werden:
 #### Beispiel 1: Eine Name mit automatischem Seed
 
 ```bash
-name-generator gen
+spoor gen
 ```
 
 Ausgabe:
@@ -92,7 +92,7 @@ Wenn kein Seed angegeben wird, erzeugt die CLI automatisch einen Seed und gibt i
 #### Beispiel 2: Drei Namen mit Seed 42 (reproduzierbar)
 
 ```bash
-name-generator gen --seed 42 --count 3
+spoor gen --seed 42 --count 3
 ```
 
 Ausgabe:
@@ -107,7 +107,7 @@ Derselbe Seed erzeugt immer dieselbe Sequenz in derselben Reihenfolge.
 #### Beispiel 3: Namen aus einem bestimmten System
 
 ```bash
-name-generator gen --systems nature --count 2
+spoor gen --systems nature --count 2
 ```
 
 Ausgabe:
@@ -122,7 +122,7 @@ Das Filter `--systems` akzeptiert komma-getrennte System-IDs. Nur Wörter mit di
 #### Beispiel 4: Benutzerdefinierte Template
 
 ```bash
-name-generator gen --seed 42 --template "The {word} of {suffix_adj} {suffix}"
+spoor gen --seed 42 --template "The {word} of {suffix_adj} {suffix}"
 ```
 
 Ausgabe:
@@ -135,7 +135,7 @@ Template-Platzhalter werden durch zufällig ausgewählte Wörter ersetzt. Litera
 #### Beispiel 5: JSON-Ausgabe
 
 ```bash
-name-generator gen --format json --seed 42 --count 1
+spoor gen --format json --seed 42 --count 1
 ```
 
 Ausgabe:
@@ -159,7 +159,7 @@ Findet ein oder mehrere Wörter, die zu einer Beschreibung passen. Nutzt Relevan
 ### Syntax
 
 ```
-name-generator find <QUERY> [OPTIONS]
+spoor find <QUERY> [OPTIONS]
 ```
 
 ### Argumente
@@ -195,7 +195,7 @@ Jeder Token wertet jede Feldkategorie höchstens einmal. Die Gesamtpunktzahl wir
 #### Beispiel 1: Ein Wort für englische Götter-Mythologie
 
 ```bash
-name-generator find "sky thunder king"
+spoor find "sky thunder king"
 ```
 
 Ausgabe:
@@ -208,7 +208,7 @@ Das Wort "zeus" matcht die Tags "sky", "thunder" und "king" exakt.
 #### Beispiel 2: Deutsche Wörter mit Erklärungen
 
 ```bash
-name-generator find "Werkzeug für Wald und Baum" --count 3 --explain
+spoor find "Werkzeug für Wald und Baum" --count 3 --explain
 ```
 
 Ausgabe:
@@ -222,7 +222,7 @@ Das Token "wald" wird zu Stoppworten gefiltert. Das verbleibende "werkzeug" matc
 #### Beispiel 3: JSON-Ausgabe
 
 ```bash
-name-generator find "light" --format json
+spoor find "light" --format json
 ```
 
 Ausgabe:
@@ -256,13 +256,13 @@ Listet alle Systeme und die Anzahl der Wörter pro System.
 #### Syntax
 
 ```
-name-generator list systems
+spoor list systems
 ```
 
 #### Beispiel
 
 ```bash
-name-generator list systems
+spoor list systems
 ```
 
 Ausgabe:
@@ -279,13 +279,13 @@ Listet alle Sprachen und die Anzahl der Wörter pro Sprache.
 #### Syntax
 
 ```
-name-generator list languages
+spoor list languages
 ```
 
 #### Beispiel
 
 ```bash
-name-generator list languages
+spoor list languages
 ```
 
 Ausgabe:
@@ -302,13 +302,13 @@ Listet alle Wortklassen und die Anzahl der Wörter pro Klasse.
 #### Syntax
 
 ```
-name-generator list classes
+spoor list classes
 ```
 
 #### Beispiel
 
 ```bash
-name-generator list classes
+spoor list classes
 ```
 
 Ausgabe:
@@ -327,7 +327,7 @@ Listet alle Wörter, optional gefiltert nach System und/oder Sprache.
 #### Syntax
 
 ```
-name-generator list words [OPTIONS]
+spoor list words [OPTIONS]
 ```
 
 #### Optionen
@@ -340,7 +340,7 @@ name-generator list words [OPTIONS]
 #### Beispiel
 
 ```bash
-name-generator list words --system nature --language en
+spoor list words --system nature --language en
 ```
 
 Ausgabe (gekürzt):
@@ -367,7 +367,7 @@ Importiert eine CSV-Datei in die SQLite-Datenbank. Die Datei muss das Format erf
 #### Syntax
 
 ```
-name-generator db import <PATH>
+spoor db import <PATH>
 ```
 
 #### Argumente
@@ -379,7 +379,7 @@ name-generator db import <PATH>
 #### Beispiel
 
 ```bash
-name-generator db import data/words.csv
+spoor db import data/words.csv
 ```
 
 Ausgabe:
@@ -396,7 +396,7 @@ Lädt Wörter direkt von den in `sources.yaml` konfigurierten Online-Quellen (ak
 #### Syntax
 
 ```
-name-generator db fetch [OPTIONS]
+spoor db fetch [OPTIONS]
 ```
 
 #### Optionen
@@ -416,7 +416,7 @@ name-generator db fetch [OPTIONS]
 #### Beispiel: Eine Quelle mit Limit (schneller Testlauf)
 
 ```bash
-name-generator db fetch --only kaikki-la --limit 50
+spoor db fetch --only kaikki-la --limit 50
 ```
 
 Ausgabe (Live-Update, docker-compose-artig — eine Zeile pro Quelle):
@@ -430,7 +430,7 @@ Imported 50 words from 1 sources.
 #### Beispiel: Alle konfigurierten Quellen
 
 ```bash
-name-generator db fetch --limit 100
+spoor db fetch --limit 100
 ```
 
 Ausgabe:
@@ -455,13 +455,13 @@ Zeigt grundlegende Statistiken über die importierten Daten.
 #### Syntax
 
 ```
-name-generator db info
+spoor db info
 ```
 
 #### Beispiel
 
 ```bash
-name-generator db info
+spoor db info
 ```
 
 Ausgabe:
@@ -503,7 +503,7 @@ Wenn `--seed N` angegeben wird:
 
 ```bash
 # Lauf 1: Namen generieren (mit zufälligem Seed)
-name-generator gen --count 3
+spoor gen --count 3
 # Ausgabe:
 # seed=12345678
 # Name A
@@ -511,7 +511,7 @@ name-generator gen --count 3
 # Name C
 
 # Lauf 2: Seed notieren und später reproduzieren
-name-generator gen --seed 12345678 --count 3
+spoor gen --seed 12345678 --count 3
 # Ausgabe (identisch zu Lauf 1):
 # Name A
 # Name B
@@ -546,7 +546,7 @@ Mit `--config <DATEI>` kann eine alternative Konfiguration verwendet werden.
 
 | Fehler | Ursache | Lösung |
 |--------|--------|--------|
-| `no words available - import data first` | Datenbank ist leer | `name-generator db import data/words.csv` ausführen |
+| `no words available - import data first` | Datenbank ist leer | `spoor db import data/words.csv` ausführen |
 | `Failed to read config file` | `config.toml` nicht gefunden | Datei erstellen oder `--config` angeben |
 | `Unknown placeholder: {foo}` | Ungültiger Platzhalter im Template | Nur `{prefix}`, `{word}`, `{suffix_adj}`, `{suffix}` verwenden |
 | `only N unique names were possible` | Zu wenig Wörter für --count | `--count` reduzieren oder mehr Wörter importieren |

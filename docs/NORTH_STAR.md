@@ -1,4 +1,4 @@
-# North Star — Name Generator
+# North Star — spoor
 
 ## Der eine Satz
 

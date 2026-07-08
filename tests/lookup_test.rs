@@ -1,5 +1,5 @@
-use name_generator::db::WordRecord;
-use name_generator::lookup;
+use spoor::db::WordRecord;
+use spoor::lookup;
 
 #[test]
 fn tokenize_removes_stopwords_and_lowercases() {

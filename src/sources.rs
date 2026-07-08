@@ -79,7 +79,7 @@ mod tests {
     #[test]
     fn test_load_sources_valid() {
         let yaml_content = r#"
-# Wortquellen fuer 'name-generator db fetch'.
+# Wortquellen fuer 'spoor db fetch'.
 #
 # WICHTIG: 'backend' bestimmt den Parser im Code. Es existiert NUR fuer die
 # folgenden Backend-Typen eine Implementierung - andere Werte schlagen beim

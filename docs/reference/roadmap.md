@@ -1,4 +1,4 @@
-# Roadmap — Name Generator
+# Roadmap — spoor
 
 Phasen-Übersicht und aktueller Status.
 
@@ -26,7 +26,7 @@ Siehe `docs/NORTH_STAR.md` für die ausführliche Vision.
 - Reproduzierbare Tests (deterministic seed)
 
 **Deliverables**:
-- Binary `target/release/name-generator.exe`
+- Binary `target/release/spoor.exe`
 - `config.toml` mit Wahrscheinlichkeitskonfiguration
 - `src/` mit modularer Architektur (main, cli, config, db, generator)
 - Tests in `tests/`
@@ -135,11 +135,11 @@ Siehe `docs/NORTH_STAR.md` für die ausführliche Vision.
 
 **Beispiel-Workflow**:
 ```bash
-name-generator find "sky thunder king"
+spoor find "sky thunder king"
 # Ausgabe:
 # zeus
 
-name-generator find "Werkzeug für Wald und Baum" --count 3 --explain
+spoor find "Werkzeug für Wald und Baum" --count 3 --explain
 # Ausgabe:
 # wald — ahd. wald, germ. *walþuz (goh) · System: nature · Treffer: wald (word), wald (etymology)
 # silvan — lat. silva 'Wald' (la) · System: nature · Treffer: wald (etymology)
@@ -251,7 +251,7 @@ name-generator find "Werkzeug für Wald und Baum" --count 3 --explain
   - Manuell curated (Mythologie, Natur, Handwerk)
   - GitHub-Wordlists (`kkrypt0nn/wordlists` u.ä.)
 
-**Workflow**: CSV erstellen → `name-generator db import` → Database
+**Workflow**: CSV erstellen → `spoor db import` → Database
 
 **Backward-Kompatibilität**: 7-spaltige CSVs werden mit leeren Etymologien importiert.
 

@@ -1,5 +1,5 @@
 use clap::Parser;
-use name_generator::cli::Cli;
+use spoor::cli::Cli;
 
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();

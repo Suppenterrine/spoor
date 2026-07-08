@@ -1,14 +1,16 @@
-# Name Generator
+# spoor
 
-Ein CLI-Werkzeug, das aus der Bedeutung eines Anwendungsfalls den passenden Namen findet — als einzelnes Wort, mit einer Spur, die bis zu seiner Herkunft zurückverfolgbar ist. Dazu ein seed-reproduzierbarer Zufallsgenerator für thematische Namen.
+> „SPOOR — follow meaning to the name.“
 
-Vision und Leitplanken: [docs/NORTH_STAR.md](docs/NORTH_STAR.md)
+Ein CLI-Werkzeug, das aus der Bedeutung eines Anwendungsfalls den passenden Namen findet — als einzelnes Wort, mit einer Spur (engl./ndl. *spoor*: die Fährte), die bis zu seiner Herkunft zurückverfolgbar ist. Dazu ein seed-reproduzierbarer Zufallsgenerator für thematische Namen.
+
+Vision und Leitplanken: [docs/NORTH_STAR.md](docs/NORTH_STAR.md) · Zum Namen: [docs/rename-project.md](docs/rename-project.md)
 
 ```console
-$ name-generator find "sky thunder king" --explain
+$ spoor find "sky thunder king" --explain
 zeus — griech. Zeus, idg. *dyeus 'Himmel, Tag' (grc) · System: myth_greek · Treffer: sky (tag), thunder (tag), king (tag)
 
-$ name-generator gen --seed 42 --count 3
+$ spoor gen --seed 42 --count 3
 Wandering atlas of Essenz
 Heilig silvan
 The Iron apex of the verborgen Dawn
@@ -24,19 +26,19 @@ cd Name-Generator
 cargo build --release
 ```
 
-Das Binary liegt danach unter `target/release/name-generator` (Windows: `name-generator.exe`, ~3 MB, keine Laufzeitabhängigkeiten).
+Das Binary liegt danach unter `target/release/spoor` (Windows: `spoor.exe`, ~5 MB, keine Laufzeitabhängigkeiten).
 
 ## Schnellstart
 
 ```bash
 # 1. Wortdatenbank aus der mitgelieferten CSV aufbauen (erzeugt data/words.db)
-name-generator db import data/words.csv
+spoor db import data/words.csv
 
 # 2. Einen Namen für einen Anwendungsfall finden (Reverse-Lookup)
-name-generator find "forest tree" --explain
+spoor find "forest tree" --explain
 
 # 3. Zufällige Namen generieren — reproduzierbar über den Seed
-name-generator gen --seed 42 --count 5
+spoor gen --seed 42 --count 5
 ```
 
 ## Kommandos

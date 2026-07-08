@@ -2,9 +2,9 @@ use std::collections::HashSet;
 use std::fs;
 use tempfile::TempDir;
 
-use name_generator::db::Db;
-use name_generator::config::Config;
-use name_generator::generator::{Generator, SeededRng, WordLists};
+use spoor::db::Db;
+use spoor::config::Config;
+use spoor::generator::{Generator, SeededRng, WordLists};
 
 #[test]
 fn csv_import_db_insert_and_deterministic_generate() {
@@ -33,7 +33,7 @@ fn csv_import_db_insert_and_deterministic_generate() {
     };
 
     let cfg = Config {
-        generator: name_generator::config::GeneratorConfig {
+        generator: spoor::config::GeneratorConfig {
             prefix_article_probability: 0.0,
             prefix_probability: 0.0,
             suffix_article_probability: 0.0,
@@ -42,7 +42,7 @@ fn csv_import_db_insert_and_deterministic_generate() {
             separator: " ".into(),
             fillword: "of".into(),
         },
-        db: name_generator::config::DbConfig {
+        db: spoor::config::DbConfig {
             path: db_path.display().to_string(),
         },
     };
@@ -69,7 +69,7 @@ fn template_determinism() {
     };
 
     let cfg = Config {
-        generator: name_generator::config::GeneratorConfig {
+        generator: spoor::config::GeneratorConfig {
             prefix_article_probability: 0.0,
             prefix_probability: 0.0,
             suffix_article_probability: 0.0,
@@ -78,7 +78,7 @@ fn template_determinism() {
             separator: " ".into(),
             fillword: "of".into(),
         },
-        db: name_generator::config::DbConfig {
+        db: spoor::config::DbConfig {
             path: ":memory:".into(),
         },
     };
@@ -108,7 +108,7 @@ fn template_empty_slot_leaves_no_stray_whitespace() {
     };
 
     let cfg = Config {
-        generator: name_generator::config::GeneratorConfig {
+        generator: spoor::config::GeneratorConfig {
             prefix_article_probability: 0.0,
             prefix_probability: 0.0,
             suffix_article_probability: 0.0,
@@ -117,7 +117,7 @@ fn template_empty_slot_leaves_no_stray_whitespace() {
             separator: " ".into(),
             fillword: "of".into(),
         },
-        db: name_generator::config::DbConfig {
+        db: spoor::config::DbConfig {
             path: ":memory:".into(),
         },
     };
@@ -142,7 +142,7 @@ fn no_word_corruption() {
     };
 
     let cfg = Config {
-        generator: name_generator::config::GeneratorConfig {
+        generator: spoor::config::GeneratorConfig {
             prefix_article_probability: 0.0,
             prefix_probability: 0.0,
             suffix_article_probability: 1.0,
@@ -151,7 +151,7 @@ fn no_word_corruption() {
             separator: " ".into(),
             fillword: "of".into(),
         },
-        db: name_generator::config::DbConfig {
+        db: spoor::config::DbConfig {
             path: ":memory:".into(),
         },
     };
@@ -175,7 +175,7 @@ fn exhaustion_safety() {
     };
 
     let cfg = Config {
-        generator: name_generator::config::GeneratorConfig {
+        generator: spoor::config::GeneratorConfig {
             prefix_article_probability: 0.0,
             prefix_probability: 0.0,
             suffix_article_probability: 0.0,
@@ -184,7 +184,7 @@ fn exhaustion_safety() {
             separator: " ".into(),
             fillword: "of".into(),
         },
-        db: name_generator::config::DbConfig {
+        db: spoor::config::DbConfig {
             path: ":memory:".into(),
         },
     };
@@ -208,12 +208,12 @@ fn exhaustion_safety() {
     assert!(third.is_none());
 }
 
-fn read_csv(path: &std::path::Path) -> Vec<name_generator::db::WordRecord> {
+fn read_csv(path: &std::path::Path) -> Vec<spoor::db::WordRecord> {
     let mut reader = csv::Reader::from_path(path).unwrap();
     let mut records = Vec::new();
     for result in reader.records() {
         let record = result.unwrap();
-        records.push(name_generator::db::WordRecord::parse_csv_record(&record).unwrap());
+        records.push(spoor::db::WordRecord::parse_csv_record(&record).unwrap());
     }
     records
 }

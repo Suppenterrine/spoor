@@ -1,6 +1,6 @@
-use name_generator::fetch::{parse_wiktextract_line, consume_jsonl, CountingReader, fetch_all, FetchProgress, FetchReport};
-use name_generator::sources::{load_sources, SourceSpec, Backend};
-use name_generator::Db;
+use spoor::fetch::{parse_wiktextract_line, consume_jsonl, CountingReader, fetch_all, FetchProgress, FetchReport};
+use spoor::sources::{load_sources, SourceSpec, Backend};
+use spoor::Db;
 use tempfile::NamedTempFile;
 use std::io::{Read, Write};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -127,7 +127,7 @@ fn test_parse_etymology_truncation_with_multibyte() {
 
 #[test]
 fn test_load_sources_with_comment_header() {
-    let yaml_content = r#"# Wortquellen fuer 'name-generator db fetch'.
+    let yaml_content = r#"# Wortquellen fuer 'spoor db fetch'.
 #
 # WICHTIG: 'backend' bestimmt den Parser im Code. Es existiert NUR fuer die
 # folgenden Backend-Typen eine Implementierung - andere Werte schlagen beim
@@ -244,7 +244,7 @@ fn test_consume_jsonl_stops_early_at_max_words() {
     };
     let counting = CountingReader::new(reader, counter.clone());
 
-    let batches: Arc<Mutex<Vec<Vec<name_generator::WordRecord>>>> = Arc::new(Mutex::new(Vec::new()));
+    let batches: Arc<Mutex<Vec<Vec<spoor::WordRecord>>>> = Arc::new(Mutex::new(Vec::new()));
     let batches_clone = batches.clone();
 
     let counter_for_bytes = counter.clone();

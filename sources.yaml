@@ -1,4 +1,4 @@
-# Wortquellen fuer 'name-generator db fetch'.
+# Wortquellen fuer 'spoor db fetch'.
 #
 # WICHTIG: 'backend' bestimmt den Parser im Code. Es existiert NUR fuer die
 # folgenden Backend-Typen eine Implementierung - andere Werte schlagen beim

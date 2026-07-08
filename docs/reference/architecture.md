@@ -1,4 +1,4 @@
-# Architektur — Name Generator
+# Architektur — spoor
 
 Übersicht der modularen Architektur und der Datenflüsse.
 
