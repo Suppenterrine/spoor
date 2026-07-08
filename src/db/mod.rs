@@ -154,7 +154,6 @@ impl Db {
     }
 
     /// Map a database row to a WordRecord
-    #[allow(dead_code)]
     fn map_word_row(row: &rusqlite::Row) -> rusqlite::Result<WordRecord> {
         Ok(WordRecord {
             id: row.get(0)?,
@@ -171,7 +170,6 @@ impl Db {
     }
 
     /// Retrieve all word records from the database, ordered by id
-    #[allow(dead_code)]
     pub fn all_records(&self) -> anyhow::Result<Vec<WordRecord>> {
         let mut stmt = self
             .conn

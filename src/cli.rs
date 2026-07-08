@@ -7,6 +7,7 @@ use serde::Serialize;
 use crate::config::Config;
 use crate::db::Db;
 use crate::generator::{Generator, SeededRng, WordLists};
+use crate::lookup;
 
 #[derive(Parser, Debug)]
 #[command(name = "name-generator")]
@@ -45,6 +46,28 @@ enum Commands {
         /// Optional custom template
         #[arg(long)]
         template: Option<String>,
+
+        /// Output format (text or json)
+        #[arg(long, default_value = "text")]
+        format: String,
+    },
+    /// Find a single fitting word for a use-case description
+    #[command(after_help = "EXAMPLES:\n  Find a word for 'sky thunder king':\n    name-generator find \"sky thunder king\"\n\n  Find 3 German words with explanations:\n    name-generator find \"Werkzeug für Wald und Baum\" --count 3 --explain")]
+    Find {
+        /// Use-case description (one quoted string)
+        query: String,
+
+        /// Number of results
+        #[arg(long, default_value_t = 1)]
+        count: usize,
+
+        /// Comma-separated system filters
+        #[arg(long)]
+        systems: Option<String>,
+
+        /// Include detailed explanations
+        #[arg(long)]
+        explain: bool,
 
         /// Output format (text or json)
         #[arg(long, default_value = "text")]
@@ -93,6 +116,23 @@ enum DbCommand {
 struct GenOutput {
     seed: u64,
     names: Vec<String>,
+}
+
+#[derive(Serialize)]
+struct FindMatch {
+    word: String,
+    score: f64,
+    etymology: Option<String>,
+    origin_lang: Option<String>,
+    system: Option<String>,
+    tags: Option<String>,
+    matched: Vec<String>,
+}
+
+#[derive(Serialize)]
+struct FindOutput {
+    query: String,
+    matches: Vec<FindMatch>,
 }
 
 impl Cli {
@@ -145,6 +185,65 @@ impl Cli {
                     }
                     for name in names {
                         println!("{}", name);
+                    }
+                }
+            }
+            Commands::Find {
+                query,
+                count,
+                systems,
+                explain,
+                format,
+            } => {
+                let (_cfg, db) = open_context(&self.config)?;
+
+                // Get all records and optionally filter by systems
+                let mut records = db.all_records()?;
+                if let Some(systems_str) = systems {
+                    let system_filter: HashSet<String> = parse_systems(&systems_str).into_iter().collect();
+                    records.retain(|r| {
+                        r.system.as_ref().map_or(false, |s| system_filter.contains(s))
+                    });
+                }
+
+                // Rank records against the query
+                let matches = lookup::rank(&records, &query);
+
+                if matches.is_empty() {
+                    eprintln!("no matches - try other keywords or import more data");
+                    std::process::exit(1);
+                }
+
+                let take_count = std::cmp::min(count, matches.len());
+
+                if format == "json" {
+                    let json_matches: Vec<FindMatch> = matches
+                        .iter()
+                        .take(take_count)
+                        .map(|m| FindMatch {
+                            word: m.record.word.clone(),
+                            score: m.score,
+                            etymology: m.record.etymology.clone(),
+                            origin_lang: m.record.origin_lang.clone(),
+                            system: m.record.system.clone(),
+                            tags: m.record.tags.clone(),
+                            matched: m.matched.clone(),
+                        })
+                        .collect();
+
+                    let out = FindOutput {
+                        query,
+                        matches: json_matches,
+                    };
+                    println!("{}", serde_json::to_string_pretty(&out)?);
+                } else {
+                    // Text format
+                    for m in matches.iter().take(take_count) {
+                        if explain {
+                            println!("{}", lookup::explain(m));
+                        } else {
+                            println!("{}", m.record.word);
+                        }
                     }
                 }
             }
@@ -217,17 +316,20 @@ fn open_context(config_path: &str) -> anyhow::Result<(Config, Db)> {
     Ok((cfg, db))
 }
 
+fn parse_systems(systems_str: &str) -> Vec<String> {
+    systems_str
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .collect()
+}
+
 fn load_wordlists(db: &Db, systems: Option<&str>) -> anyhow::Result<WordLists> {
     let mut prefixes = Vec::new();
     let mut words = Vec::new();
     let mut suffix_adjs = Vec::new();
     let mut suffix_names = Vec::new();
 
-    let systems_filter = systems.map(|s| {
-        s.split(',')
-            .map(|s| s.trim().to_string())
-            .collect::<Vec<_>>()
-    });
+    let systems_filter = systems.map(parse_systems);
 
     let word_class_rows = db.words_by_class(systems_filter.as_deref())?;
 

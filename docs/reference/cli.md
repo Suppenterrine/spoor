@@ -10,6 +10,7 @@ name-generator [GLOBAL-OPTIONS] <COMMAND>
 
 Die CLI folgt einer hierarchischen Subcommand-Struktur:
 - **gen** — Namen generieren
+- **find** — Ein passendes Wort für eine Nutzfallbeschreibung suchen
 - **list** — Datenbank durchsuchen
   - **systems** — Verfügbare Systeme auflisten
   - **languages** — Verfügbare Sprachen auflisten
@@ -147,6 +148,99 @@ Ausgabe:
 ```
 
 JSON-Format enthält den Seed und ein Array von generierten Namen.
+
+---
+
+## find — Wort für Nutzfallbeschreibung suchen
+
+Findet ein oder mehrere Wörter, die zu einer Beschreibung passen. Nutzt Relevanz-Scoring nach Wort, Tags, System und Etymologie.
+
+### Syntax
+
+```
+name-generator find <QUERY> [OPTIONS]
+```
+
+### Argumente
+
+| Argument | Beschreibung |
+|----------|-------------|
+| `<QUERY>` | Nutzfallbeschreibung (z. B. "sky thunder king" oder "Werkzeug für Wald") |
+
+### Optionen
+
+| Option | Wert | Beschreibung |
+|--------|------|-------------|
+| `--count <COUNT>` | usize | Anzahl der gesuchten Wörter. Standardwert: 1 |
+| `--systems <SYSTEMS>` | String | Komma-getrennte Liste von Systemen zum Filtern (z. B. `nature,myth_greek`). |
+| `--explain` | flag | Zeigt detaillierte Erklärungen (Etymologie, Herkunftssprache, System, Treffer). |
+| `--format <FORMAT>` | text \| json | Ausgabeformat. Standardwert: `text` |
+| `--config <CONFIG>` | Path | Konfigurationsdatei-Pfad. Standardwert: `config.toml` |
+
+### Scoring-Regeln
+
+Jeder Token der Query wird gegen alle Datensätze gewertet:
+- **Wort exakt** (Hauptwort-Match): 5.0 Punkte
+- **Wort Substring** (min. 3 Zeichen): 2.0 Punkte
+- **Tag exakt**: 3.0 Punkte
+- **Tag Substring** (min. 3 Zeichen): 1.5 Punkte
+- **System Match**: 2.0 Punkte
+- **Etymologie Substring** (min. 3 Zeichen): 1.0 Punkte
+
+Jeder Token wertet jede Feldkategorie höchstens einmal. Die Gesamtpunktzahl wird mit dem `seed_weight` des Worts multipliziert. Sortierung: Score (DESC) → seed_weight (DESC) → Wort (ASC).
+
+### Beispiele
+
+#### Beispiel 1: Ein Wort für englische Götter-Mythologie
+
+```bash
+name-generator find "sky thunder king"
+```
+
+Ausgabe:
+```
+zeus
+```
+
+Das Wort "zeus" matcht die Tags "sky", "thunder" und "king" exakt.
+
+#### Beispiel 2: Deutsche Wörter mit Erklärungen
+
+```bash
+name-generator find "Werkzeug für Wald und Baum" --count 3 --explain
+```
+
+Ausgabe:
+```
+wald — ahd. wald, germ. *walþuz (goh) · System: nature · Treffer: wald (word), wald (etymology)
+silvan — lat. silva 'Wald' (la) · System: nature · Treffer: wald (etymology)
+```
+
+Das Token "wald" wird zu Stoppworten gefiltert. Das verbleibende "werkzeug" matcht mit "silvan" via Etymologie.
+
+#### Beispiel 3: JSON-Ausgabe
+
+```bash
+name-generator find "light" --format json
+```
+
+Ausgabe:
+```json
+{
+  "query": "light",
+  "matches": [
+    {
+      "word": "helios",
+      "score": 3.6,
+      "etymology": "griech. Helios 'Sonne', idg. *s(w)el-",
+      "origin_lang": "grc",
+      "system": "myth_greek",
+      "tags": "sun,light",
+      "matched": ["light (tag)"]
+    }
+  ]
+}
+```
 
 ---
 

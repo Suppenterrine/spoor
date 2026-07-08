@@ -3,6 +3,7 @@ mod cli;
 mod config;
 mod db;
 mod generator;
+mod lookup;
 
 use crate::cli::Cli;
 

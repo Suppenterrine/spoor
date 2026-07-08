@@ -15,6 +15,7 @@ src/
 │   ├── mod.rs           # Öffentliche Exports
 │   ├── rng.rs           # SeededRng (ChaCha8-Wrapper)
 │   └── template.rs      # Template-Parser und Generator
+├── lookup/mod.rs        # Reverse-Lookup (Keyword-Suche)
 └── csv_import           # (intern in cli.rs)
 ```
 
@@ -52,6 +53,28 @@ csv_import::read_words() → Vec<WordRecord>
 db.insert_words() → SQLite INSERT/REPLACE
     ↓
 words.db (aktualisiert)
+```
+
+### Lookup-Pipeline
+
+```
+Query: "sky thunder king"
+    ↓
+lookup::tokenize(query) → ["sky", "thunder", "king"]
+    ↓
+Stoppwörter-Filter (z. B. "der", "die", "und")
+    ↓
+db.all_records() → Vec<WordRecord>
+    ↓
+lookup::rank(records, tokens) → Vec<Match> (nach Score sortiert)
+    ↓
+Filter: score > 0
+    ↓
+Sort: score DESC → seed_weight DESC → word ASC
+    ↓
+lookup::explain(match) → "word — etymology (lang) · System: sys · Treffer: ..."
+    ↓
+Ausgabe (text oder json)
 ```
 
 ## Kern-Module
@@ -251,7 +274,57 @@ pub fn generate_unique(
 
 ---
 
-### 5. **cli.rs** — Befehlszeileninterface
+### 5. **lookup/mod.rs** — Reverse-Lookup (Keyword-Scoring)
+
+Implementiert die Suche nach Wörtern zu einer Nutzfallbeschreibung. Nutzt einfaches, aber effektives Keyword-Scoring.
+
+**Datentypen**:
+```rust
+pub struct Match {
+    pub record: WordRecord,
+    pub score: f64,
+    pub matched: Vec<String>,  // z. B. ["sky (tag)", "thunder (tag)"]
+}
+
+pub fn tokenize(query: &str) -> Vec<String>
+    // Lowercase, split on non-alphanumeric, filter stopwords, dedup
+
+pub fn rank(records: &[WordRecord], query: &str) -> Vec<Match>
+    // Score all records, filter > 0, sort deterministically
+
+pub fn explain(m: &Match) -> String
+    // German format: "word — etymology (lang) · System: sys · Treffer: ..."
+```
+
+**Scoring-Pipeline**:
+
+1. **Tokenisierung**: Query in Tokens splitten, Stopwörter filtern (DE/EN: "der", "die", "das", "ein", "und", "oder", ...)
+2. **Scoring pro Token und Feld**:
+   - Wort exakt: 5.0
+   - Wort Substring (≥3): 2.0
+   - Tag exakt: 3.0
+   - Tag Substring (≥3): 1.5
+   - System (exakt/Substring): 2.0
+   - Etymologie (Substring, ≥3): 1.0
+3. **Ein Token wertet jedes Feld max. einmal** (nur höchste Punktzahl)
+4. **Multiplikation mit seed_weight**: `score *= record.seed_weight`
+5. **Deterministische Sortierung**:
+   - Score DESC (höher besser)
+   - seed_weight DESC (höher besser)
+   - word ASC (alphabetisch für Tie-Break)
+
+**Beispiel**:
+- Query: "sky thunder king"
+- Tokens: ["sky", "thunder", "king"] (keine Stopwörter)
+- Record "zeus": tags="sky,thunder,king", seed_weight=1.2
+  - Token "sky": Tag exakt → 3.0
+  - Token "thunder": Tag exakt → 3.0
+  - Token "king": Tag exakt → 3.0
+  - Total: 9.0 × 1.2 = 10.8
+
+---
+
+### 6. **cli.rs** — Befehlszeileninterface
 
 Parst Kommandos (über `clap`) und orchestriert die Logik.
 
@@ -268,6 +341,7 @@ pub struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     Gen { seed, count, systems, template, format },
+    Find { query, count, systems, explain, format },
     List(ListCommand),
     Db(DbCommand),
 }
@@ -292,6 +366,17 @@ enum DbCommand {
 4. Seed generieren oder verwenden
 5. Loop `count` Mal: `generate_unique()` → Name
 6. Ausgeben (text oder json)
+
+**Hauptablauf für `find`**:
+1. `open_context(config_path)` → `(Config, Db)`
+2. `db.all_records()` → Vec<WordRecord>
+3. Optional system-Filter anwenden
+4. `lookup::rank(records, query)` → Vec<Match>
+5. Wenn keine Matches: stderr-Meldung, exit 1
+6. Erste `count` Matches ausgeben:
+   - Ohne `--explain`: nur `word` pro Zeile
+   - Mit `--explain`: `lookup::explain(match)` pro Zeile
+7. Mit `--format json`: `FindOutput { query, matches: [...] }`
 
 **Hauptablauf für `list systems|languages|classes`**:
 1. `open_context()`

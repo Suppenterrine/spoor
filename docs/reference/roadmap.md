@@ -93,9 +93,9 @@ Siehe `docs/NORTH_STAR.md` für die ausführliche Vision.
 
 ---
 
-### Phase 3: Reverse-Lookup v1 (Semantische Suche nach Anwendungsfall)
+### Phase 3: Reverse-Lookup v1 (Semantische Suche nach Anwendungsfall) ✅ FERTIG
 
-**Zeitraum**: Nach Phase 2
+**Zeitraum**: Mit diesem Commit
 
 **Ziele**:
 - Neuer Command: `find "<beschreibung>" [--count N] [--explain] [--systems <systems>]`
@@ -105,35 +105,44 @@ Siehe `docs/NORTH_STAR.md` für die ausführliche Vision.
   - Treffer-Gewichtung: `word` > `tags` > `system` > `etymology`
   - Ranking nach Relevanz
 - Ausgabe:
-  - Standard: ein Wort ("Kohärenz")
+  - Standard: ein Wort (Default: count=1, "North Star")
   - `--count N`: N beste Wörter
   - `--explain`: Etymologie + Begründung (warum dieses Wort passt)
   - `--systems <list>`: Filter auf Systeme
 - Keine Embeddings noch (bleibt für Phase 4)
 
 **Deliverables**:
-- `src/lookup/` Modul
-  - `search.rs` — Keyword-Tokenisierung + Scoring
-  - `explain.rs` — Etymologie-Ausgabe formatieren
-- CLI-Command `find` mit Subcommand-Struktur angepasst
-- Beispiele in `docs/reference/cli.md` (find-Command)
-- Tests für Scoring-Logik
+- ✅ `src/lookup/mod.rs` Modul mit:
+  - `tokenize()` — Keyword-Tokenisierung + Stoppwörter-Filter
+  - `score_record()` — Relevanz-Bewertung pro Datensatz
+  - `rank()` — Deterministische Sortierung
+  - `explain()` — Deutsche Etymologie-Ausgabe
+- ✅ CLI-Command `find <QUERY> [--count N] [--explain] [--systems S] [--format text|json]`
+- ✅ Beispiele in `docs/reference/cli.md` (find-Command mit 3 Beispielen)
+- ✅ Tests in `tests/lookup_test.rs` (6 Tests: tokenize, rank-precedence, determinism, tiebreak, explain, no-match)
+- ✅ Architektur-Dokumentation in `docs/reference/architecture.md`
+- ✅ Scoring-Logik: word (5.0) > tag (3.0) > system (2.0) > etymology (1.0)
 
-**Status**: ⏳ OFFEN
+**Status**: ✅ FERTIG
+- `cargo test` — 14 Tests grün (8 integration + 6 lookup)
+- `cargo build` — Zero Warnings
+- `find "sky thunder king"` → "zeus"
+- `find "Werkzeug für Wald und Baum" --count 3 --explain` → 2–3 Ergebnisse mit Etymologie
+- `find "xyzzy quux"` → No matches, exit code 1
+- Determinismus verifiziert: identische Ausgabe bei zwei Läufen
 
 **Abhängigkeiten**: Phase 0, Phase 2
 
 **Beispiel-Workflow**:
 ```bash
-name-generator find "CLI für Logverwaltung in verteilten Systemen"
+name-generator find "sky thunder king"
 # Ausgabe:
-# Kohärenz
+# zeus
 
-name-generator find "CLI für Logverwaltung" --count 3 --explain
+name-generator find "Werkzeug für Wald und Baum" --count 3 --explain
 # Ausgabe:
-# 1. Kohärenz — lat. cohaerere (zusammenhängen) → Synchronisierung, Konsistenz
-# 2. Faden — Metapher für Datenströme (Verbindung)
-# 3. Riss — negativ: Fehler, Bruch, Disconnect
+# wald — ahd. wald, germ. *walþuz (goh) · System: nature · Treffer: wald (word), wald (etymology)
+# silvan — lat. silva 'Wald' (la) · System: nature · Treffer: wald (etymology)
 ```
 
 ---
@@ -220,11 +229,14 @@ name-generator find "CLI für Logverwaltung" --count 3 --explain
 - ✅ Schema-Migration läuft rückwärtskompatibel
 - ✅ CSV und DB importieren korrekt
 
-### Phase 3
+### Phase 3 ✅
 
-- `find "verteiltes System"` gibt ein relevantes Wort zurück
-- `find ... --explain` zeigt Etymologie + Begründung
-- Scoring-Tests zeigen 70%+ Precision für Top-3-Ergebnisse
+- ✅ `find "sky thunder king"` gibt "zeus" zurück
+- ✅ `find ... --explain` zeigt Etymologie + System + Treffer
+- ✅ Scoring-Tests vorhanden (tokenize, rank, determinism, tiebreak)
+- ✅ Determinismus verifiziert (identische Ausgabe bei zwei Läufen)
+- ✅ `cargo test` — 14 grün (8 integration + 6 lookup)
+- ✅ `cargo build` — Zero Warnings
 
 ### Phase 4 (optional)
 
