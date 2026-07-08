@@ -1,7 +1,14 @@
-use std::{collections::HashMap, path::Path};
+use std::path::Path;
 
 use anyhow::Context;
 use rusqlite::{self, Connection, params};
+
+#[derive(Debug, Clone)]
+pub struct DbStats {
+    pub total: usize,
+    pub by_language: Vec<(String, usize)>,
+    pub by_system: Vec<(String, usize)>,
+}
 
 #[derive(Debug, Clone)]
 pub struct WordRecord {
@@ -92,31 +99,26 @@ impl Db {
         Ok(())
     }
 
-    pub fn get_random_by_system(
-        &self,
-        system: &str,
-        _rng: &mut crate::generator::SeededRng,
-        limit: usize,
-    ) -> anyhow::Result<Vec<WordRecord>> {
+    pub fn words_by_class(&self, systems: Option<&[String]>) -> anyhow::Result<Vec<(String, String)>> {
+        let systems = systems.unwrap_or(&[]);
+        let query = if systems.is_empty() {
+            "SELECT word, word_class FROM words ORDER BY id".to_string()
+        } else {
+            format!(
+                "SELECT word, word_class FROM words WHERE system IN ({}) ORDER BY id",
+                (1..=systems.len()).map(|i| format!("?{i}")).collect::<Vec<_>>().join(",")
+            )
+        };
+
         let mut stmt = self
             .conn
-            .prepare("SELECT id, word, word_class, language, system, tags, seed_weight, source FROM words WHERE system = ?1 ORDER BY RANDOM() LIMIT ?2")
-            .context("failed to prepare random-by-system query")?;
-
+            .prepare(&query)
+            .context("failed to prepare words-by-class query")?;
         let rows = stmt
-            .query_map(params![system, limit as i64], |row| {
-                Ok(WordRecord {
-                    id: row.get(0)?,
-                    word: row.get(1)?,
-                    word_class: row.get(2)?,
-                    language: row.get(3)?,
-                    system: row.get(4)?,
-                    tags: row.get(5)?,
-                    seed_weight: row.get(6)?,
-                    source: row.get(7)?,
-                })
+            .query_map(rusqlite::params_from_iter(systems.iter().map(|s| s.as_str())), |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
             })
-            .context("failed to query random words by system")?;
+            .context("failed to query words by class")?;
 
         let mut out = Vec::new();
         for row in rows {
@@ -125,62 +127,42 @@ impl Db {
         Ok(out)
     }
 
-    pub fn search_by_tag(&self, tag: &str) -> anyhow::Result<Vec<WordRecord>> {
-        let pattern = format!("%{}%", tag);
+    fn query_group_by(&self, query: &str) -> anyhow::Result<Vec<(String, usize)>> {
         let mut stmt = self
             .conn
-            .prepare("SELECT id, word, word_class, language, system, tags, seed_weight, source FROM words WHERE tags LIKE ?1")
-            .context("failed to prepare tag search query")?;
-        let rows = stmt
-            .query_map(params![pattern], |row| {
-                Ok(WordRecord {
-                    id: row.get(0)?,
-                    word: row.get(1)?,
-                    word_class: row.get(2)?,
-                    language: row.get(3)?,
-                    system: row.get(4)?,
-                    tags: row.get(5)?,
-                    seed_weight: row.get(6)?,
-                    source: row.get(7)?,
-                })
-            })
-            .context("failed to search words by tag")?;
-        let mut out = Vec::new();
-        for row in rows {
-            out.push(row?);
-        }
-        Ok(out)
-    }
-
-    pub fn stats(&self) -> anyhow::Result<HashMap<String, usize>> {
-        let mut stmt = self
-            .conn
-            .prepare("SELECT language, COUNT(*) FROM words GROUP BY language")
-            .context("failed to prepare stats query")?;
-        let mut out = HashMap::new();
+            .prepare(query)
+            .context("failed to prepare group-by query")?;
         let rows = stmt
             .query_map([], |row| {
                 Ok((row.get::<_, String>(0)?, row.get::<_, usize>(1)?))
             })
-            .context("failed to collect stats rows")?;
+            .context("failed to collect group-by rows")?;
+        let mut out = Vec::new();
         for row in rows {
-            let (lang, count) = row?;
-            out.insert(lang, count);
+            out.push(row?);
         }
-        let total = out.values().sum();
-        out.insert("total".into(), total);
         Ok(out)
     }
 
-    pub fn total(&self) -> anyhow::Result<usize> {
-        let count: usize = self
+    pub fn stats(&self) -> anyhow::Result<DbStats> {
+        let total: usize = self
             .conn
             .query_row("SELECT COUNT(*) FROM words", [], |row| row.get(0))
             .context("failed to count words")?;
-        Ok(count)
+
+        let by_language = self.query_group_by(
+            "SELECT language, COUNT(*) as cnt FROM words GROUP BY language ORDER BY cnt DESC, language ASC"
+        )?;
+
+        let by_system = self.query_group_by(
+            "SELECT system, COUNT(*) as cnt FROM words GROUP BY system ORDER BY cnt DESC, system ASC"
+        )?;
+
+        Ok(DbStats {
+            total,
+            by_language,
+            by_system,
+        })
     }
 
-    pub(crate) fn conn(&self) -> &Connection {
-        &self.conn
-    }
 }

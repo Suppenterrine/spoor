@@ -23,7 +23,7 @@ fn csv_import_db_insert_and_deterministic_generate() {
 
     let mut db = Db::open(&db_path).unwrap();
     db.insert_words(&records).unwrap();
-    assert_eq!(db.total().unwrap(), 2);
+    assert_eq!(db.stats().unwrap().total, 2);
 
     let words = WordLists {
         prefixes: vec![],
@@ -216,4 +216,59 @@ fn read_csv(path: &std::path::Path) -> Vec<name_generator::db::WordRecord> {
         records.push(name_generator::db::WordRecord::parse_csv_record(&record).unwrap());
     }
     records
+}
+
+#[test]
+fn db_stats_and_class_query() {
+    let dir = TempDir::new().unwrap();
+    let csv_path = dir.path().join("words.csv");
+    let db_path = dir.path().join("words.db");
+
+    // Create CSV with two languages, two systems, and noun/prefix/suffix classes
+    fs::write(
+        &csv_path,
+        "word,language,word_class,system,tags,seed_weight,source\n\
+         oak,en,noun,nature,\"tree,strong\",1.0,wiki\n\
+         silent,en,prefix,nature,quiet,1.0,curated\n\
+         glory,en,suffix,nature,honor,1.0,curated\n\
+         eiche,de,noun,craft,wood,1.0,wiki\n\
+         golden,de,prefix,craft,shiny,1.0,curated\n\
+         macht,de,suffix,craft,power,1.0,curated\n",
+    )
+    .unwrap();
+
+    let records = read_csv(&csv_path);
+    assert_eq!(records.len(), 6);
+
+    let mut db = Db::open(&db_path).unwrap();
+    db.insert_words(&records).unwrap();
+
+    // Test stats
+    let stats = db.stats().unwrap();
+    assert_eq!(stats.total, 6);
+
+    // Check by_language counts
+    let en_count = stats.by_language.iter().find(|(lang, _)| lang == "en").map(|(_, cnt)| cnt);
+    let de_count = stats.by_language.iter().find(|(lang, _)| lang == "de").map(|(_, cnt)| cnt);
+    assert_eq!(en_count, Some(&3));
+    assert_eq!(de_count, Some(&3));
+
+    // Check by_system counts
+    let nature_count = stats.by_system.iter().find(|(sys, _)| sys == "nature").map(|(_, cnt)| cnt);
+    let craft_count = stats.by_system.iter().find(|(sys, _)| sys == "craft").map(|(_, cnt)| cnt);
+    assert_eq!(nature_count, Some(&3));
+    assert_eq!(craft_count, Some(&3));
+
+    // Test words_by_class with system filter
+    let nature_words = db.words_by_class(Some(&["nature".to_string()])).unwrap();
+    assert_eq!(nature_words.len(), 3);
+    assert!(nature_words.iter().any(|(w, _)| w == "oak"));
+    assert!(nature_words.iter().any(|(w, _)| w == "silent"));
+    assert!(nature_words.iter().any(|(w, _)| w == "glory"));
+    assert!(!nature_words.iter().any(|(w, _)| w == "eiche"));
+    assert!(!nature_words.iter().any(|(w, _)| w == "golden"));
+
+    // Test words_by_class without filter (all words)
+    let all_words = db.words_by_class(None).unwrap();
+    assert_eq!(all_words.len(), 6);
 }

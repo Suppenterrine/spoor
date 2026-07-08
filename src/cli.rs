@@ -130,13 +130,14 @@ impl Cli {
             Commands::Info { config } => {
                 let (_cfg, db) = open_context(&config)?;
                 let stats = db.stats()?;
-                let total = stats.get("total").copied().unwrap_or(0);
-                println!("Total words: {total}");
-                for (k, v) in &stats {
-                    if k == "total" {
-                        continue;
-                    }
-                    println!("{}: {}", k, v);
+                println!("Total words: {}", stats.total);
+                println!("\nBy language:");
+                for (lang, count) in &stats.by_language {
+                    println!("  {}: {}", lang, count);
+                }
+                println!("\nBy system:");
+                for (sys, count) in &stats.by_system {
+                    println!("  {}: {}", sys, count);
                 }
             }
         }
@@ -162,23 +163,9 @@ fn load_wordlists(db: &Db, systems: Option<&str>) -> anyhow::Result<WordLists> {
             .collect::<Vec<_>>()
     });
 
-    let sql = "SELECT system, word, word_class FROM words";
-    let mut stmt = db.conn().prepare(sql)?;
-    let rows = stmt.query_map([], |row| {
-        let system: String = row.get(0)?;
-        let word: String = row.get(1)?;
-        let word_class: String = row.get(2)?;
-        Ok((system, word, word_class))
-    })?;
+    let word_class_rows = db.words_by_class(systems_filter.as_deref())?;
 
-    for row in rows {
-        let (system, word, word_class) = row?;
-        if let Some(ref filters) = systems_filter {
-            if !filters.contains(&system) {
-                continue;
-            }
-        }
-
+    for (word, word_class) in word_class_rows {
         match word_class.as_str() {
             "prefix" => prefixes.push(word),
             "noun" | "proper" => words.push(word),

@@ -142,29 +142,34 @@ fillword = "of"
 path = "data/words.db"
 ```
 
-Word-Daten liegen in `data/words.csv`; der Import erzeugt `data/words.db`.
+Word-Daten liegen in `data/words.csv`; der Import via `import data/words.csv` erzeugt `data/words.db`,
+welche in `.gitignore` eingetragen und nicht versioniert wird.
 
 ### Kommandozeile
 
 Unter Windows/MSYS2-Shell:
 
 ```bash
-# Import aus CSV in die interne Datenbank
-target/release/name-generator.exe import
+# Import aus CSV in die interne Datenbank (erzeugt data/words.db)
+target/release/name-generator.exe import data/words.csv
 
-# Ein oder mehrere Namen erzeugen
+# Ein oder mehrere Namen erzeugen (Seed wird erzeugt und gedruckt, wenn nicht angegeben)
 target/release/name-generator.exe gen
 target/release/name-generator.exe gen --count 5
-target/release/name-generator.exe gen --seed 5a3f
+target/release/name-generator.exe gen --seed 42
 
-# Datenbankinfo anzeigen
+# Mit benutzerdefinierten Template (Platzhalter: {prefix}, {word}, {suffix_adj}, {suffix})
+target/release/name-generator.exe gen --template "The {word} of {suffix}"
+
+# Datenbankinfo anzeigen (mit --config alternativ konfigurierbar)
 target/release/name-generator.exe info
+target/release/name-generator.exe info --config config.toml
 ```
 
 In PowerShell/CMD kann alternativ das folgende Pattern verwendet werden:
 
 ```powershell
-.\target\release\name-generator.exe import
+.\target\release\name-generator.exe import data/words.csv
 .\target\release\name-generator.exe gen --count 5
 ```
 

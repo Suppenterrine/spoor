@@ -109,3 +109,5 @@ junk/
 # Added by cargo
 
 /target
+data/words.db
+output/
