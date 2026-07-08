@@ -48,23 +48,34 @@ Ausgabe (text oder json)
 ```
 data/words.csv
     ↓
-csv_import::read_words() → Vec<WordRecord>
+db.import_csv() [Streaming]:
+  - Öffnet CSV-Reader mit Iterator (keine Vec-Pufferung)
+  - Startet SQLite-Transaktion
+  - Prepared Statement wird einmal erstellt
+  - Für jeden CSV-Record:
+    • WordRecord::parse_csv_record()
+    • Zählt unbekannte word_class Werte
+    • Führt INSERT OR REPLACE aus
+  - Transaktion committen
     ↓
-db.insert_words() → SQLite INSERT/REPLACE
+ImportReport { imported: usize, unknown_class: usize }
     ↓
 words.db (aktualisiert)
-```
 
 ### Lookup-Pipeline
 
 ```
-Query: "sky thunder king"
+Query: "sky thunder king", optional Systems: ["nature"]
     ↓
 lookup::tokenize(query) → ["sky", "thunder", "king"]
     ↓
 Stoppwörter-Filter (z. B. "der", "die", "und")
     ↓
-db.all_records() → Vec<WordRecord>
+db.all_records(systems) [in SQL]:
+  - Falls systems gefiltert: WHERE system IN (?, ?, ...)
+  - Streaming Ergebnis
+    ↓
+Vec<WordRecord>
     ↓
 lookup::rank(records, tokens) → Vec<Match> (nach Score sortiert)
     ↓
@@ -117,12 +128,14 @@ Alle SQL-Operationen sind hier konzentriert. Keine SQL in anderen Modulen.
 pub struct WordRecord {
     pub id: String,                    // language_word (Duplikat-Key)
     pub word: String,
-    pub word_class: Option<String>,    // prefix, noun, proper, adj, suffix
+    pub word_class: Option<String>,    // prefix, noun, proper, adj, suffix, suffix_noun
     pub language: Option<String>,      // en, de, la, ...
     pub system: Option<String>,        // nature, myth_greek, craft, ...
     pub tags: Option<String>,          // Tags (z. B. fire,sky)
-    pub seed_weight: f64,              // Gewicht (zukünftig)
+    pub seed_weight: f64,              // Gewicht für Ranking
     pub source: Option<String>,        // wiktionary, curated, ...
+    pub etymology: Option<String>,     // Herkunftsbeschreibung
+    pub origin_lang: Option<String>,   // Ursprungssprache (grc, lat, non, ...)
 }
 
 pub struct Db {
@@ -134,14 +147,23 @@ pub struct DbStats {
     pub by_language: Vec<(String, usize)>,
     pub by_system: Vec<(String, usize)>,
 }
+
+pub struct ImportReport {
+    pub imported: usize,               // Anzahl importierter Zeilen
+    pub unknown_class: usize,          // Anzahl Zeilen mit unbekanntem word_class
+}
 ```
 
 **Verantwortung**:
 - SQLite-Verbindung verwalten
 - Schema erstellen (`ensure_schema`)
-- Wörter einfügen/ersetzen (`insert_words`)
-- Abfragen: `list_systems()`, `list_languages()`, `list_classes()`, `list_words()`, `words_by_class()`, `stats()`
+- Wörter einfügen/ersetzen (`insert_words`, `import_csv`)
+- `import_csv(path)`: Stream-Import aus CSV, zählt unbekannte word_class, gibt ImportReport zurück
+- `all_records(systems: Option<&[String]>)`: Filtert in SQL (WHERE system IN) nicht in Rust
+- `words_by_class(systems)`: Filtered list by systems for word loading
+- Abfragen: `list_systems()`, `list_languages()`, `list_classes()`, `list_words()`, `stats()`
 - Alle SQL-Transaktionen (Atomarität)
+- Hilfsfunktion `in_clause(n)` für dynamische WHERE IN Placeholders
 
 **Duplikat-Vermeidung**:
 - Primary Key ist `id = language + "_" + word`
@@ -369,8 +391,8 @@ enum DbCommand {
 
 **Hauptablauf für `find`**:
 1. `open_context(config_path)` → `(Config, Db)`
-2. `db.all_records()` → Vec<WordRecord>
-3. Optional system-Filter anwenden
+2. Parse systems filter (if provided) → `Vec<String>`
+3. `db.all_records(systems)` [WHERE system IN SQL] → Vec<WordRecord>
 4. `lookup::rank(records, query)` → Vec<Match>
 5. Wenn keine Matches: stderr-Meldung, exit 1
 6. Erste `count` Matches ausgeben:
@@ -390,9 +412,13 @@ enum DbCommand {
 
 **Hauptablauf für `db import`**:
 1. `open_context()`
-2. `csv_import::read_words(path)` → Vec<WordRecord>
-3. `db.insert_words(records)`
-4. Erfolgs-Nachricht
+2. `db.import_csv(path)` [Streaming]:
+   - CSV-Iterator direkt in Transaktion
+   - Prepared Statement wird einmal erzeugt
+   - Zählt unbekannte word_class Werte
+   - Gibt ImportReport { imported, unknown_class } zurück
+3. Print "Imported N words."
+4. Falls unknown_class > 0: Print "Warning: N words have an unrecognized word_class and will be ignored by 'gen'."
 
 **Hauptablauf für `db info`**:
 1. `open_context()`

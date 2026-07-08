@@ -197,14 +197,9 @@ impl Cli {
             } => {
                 let (_cfg, db) = open_context(&self.config)?;
 
-                // Get all records and optionally filter by systems
-                let mut records = db.all_records()?;
-                if let Some(systems_str) = systems {
-                    let system_filter: HashSet<String> = parse_systems(&systems_str).into_iter().collect();
-                    records.retain(|r| {
-                        r.system.as_ref().map_or(false, |s| system_filter.contains(s))
-                    });
-                }
+                // Get records filtered by systems in SQL
+                let systems_filter = systems.map(|s| parse_systems(&s));
+                let records = db.all_records(systems_filter.as_deref())?;
 
                 // Rank records against the query
                 let matches = lookup::rank(&records, &query);
@@ -286,9 +281,11 @@ impl Cli {
                 match db_cmd {
                     DbCommand::Import { path } => {
                         let (_cfg, mut db) = open_context(&self.config)?;
-                        let records = csv_import::read_words(&path)?;
-                        db.insert_words(&records)?;
-                        println!("Imported {} words.", records.len());
+                        let report = db.import_csv(&path)?;
+                        println!("Imported {} words.", report.imported);
+                        if report.unknown_class > 0 {
+                            println!("Warning: {} words have an unrecognized word_class and will be ignored by 'gen'.", report.unknown_class);
+                        }
                     }
                     DbCommand::Info => {
                         let (_cfg, db) = open_context(&self.config)?;
@@ -351,18 +348,3 @@ fn load_wordlists(db: &Db, systems: Option<&str>) -> anyhow::Result<WordLists> {
     })
 }
 
-mod csv_import {
-    use std::path::Path;
-    use crate::db::WordRecord;
-
-    pub fn read_words(path: impl AsRef<Path>) -> anyhow::Result<Vec<WordRecord>> {
-        let mut reader = csv::Reader::from_path(path)?;
-        let mut records = Vec::new();
-        for result in reader.records() {
-            let record = result?;
-            let rec = WordRecord::parse_csv_record(&record)?;
-            records.push(rec);
-        }
-        Ok(records)
-    }
-}

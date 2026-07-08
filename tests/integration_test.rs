@@ -248,7 +248,7 @@ fn csv_with_etymology_roundtrip() {
     let mut db = Db::open(&db_path).unwrap();
     db.insert_words(&records).unwrap();
 
-    let retrieved = db.all_records().unwrap();
+    let retrieved = db.all_records(None).unwrap();
     assert_eq!(retrieved.len(), 2);
 
     assert_eq!(retrieved[0].word, "alpha");
@@ -295,7 +295,7 @@ fn schema_migration_adds_columns() {
     let db = Db::open(&db_path).unwrap();
 
     // Verify that all_records works and returns the row with etymology and origin_lang as None
-    let records = db.all_records().unwrap();
+    let records = db.all_records(None).unwrap();
     assert_eq!(records.len(), 1);
     assert_eq!(records[0].word, "oak");
     assert_eq!(records[0].etymology, None);
@@ -369,4 +369,94 @@ fn db_stats_and_class_query() {
     // Test words_by_class without filter (all words)
     let all_words = db.words_by_class(None).unwrap();
     assert_eq!(all_words.len(), 6);
+}
+
+#[test]
+fn find_systems_filter_in_sql() {
+    let dir = TempDir::new().unwrap();
+    let csv_path = dir.path().join("words.csv");
+    let db_path = dir.path().join("words.db");
+
+    // Create CSV with two systems
+    fs::write(
+        &csv_path,
+        "word,language,word_class,system,tags,seed_weight,source\n\
+         oak,en,noun,nature,tree,1.0,wiki\n\
+         birch,en,noun,nature,tree,1.0,wiki\n\
+         zeus,la,proper,myth_greek,sky,1.2,curated\n\
+         hades,la,proper,myth_greek,underworld,1.2,curated\n",
+    )
+    .unwrap();
+
+    let records = read_csv(&csv_path);
+    let mut db = Db::open(&db_path).unwrap();
+    db.insert_words(&records).unwrap();
+
+    // Test all_records with nature system filter
+    let nature_records = db.all_records(Some(&["nature".to_string()])).unwrap();
+    assert_eq!(nature_records.len(), 2);
+    assert!(nature_records.iter().any(|r| r.word == "oak"));
+    assert!(nature_records.iter().any(|r| r.word == "birch"));
+    assert!(!nature_records.iter().any(|r| r.word == "zeus"));
+    assert!(!nature_records.iter().any(|r| r.word == "hades"));
+
+    // Test all_records without filter
+    let all_records = db.all_records(None).unwrap();
+    assert_eq!(all_records.len(), 4);
+}
+
+#[test]
+fn import_reports_unknown_classes() {
+    let dir = TempDir::new().unwrap();
+    let csv_path = dir.path().join("words.csv");
+    let db_path = dir.path().join("words.db");
+
+    // Create CSV with one recognized and one unrecognized word_class
+    fs::write(
+        &csv_path,
+        "word,language,word_class,system,tags,seed_weight,source\n\
+         oak,en,noun,nature,tree,1.0,wiki\n\
+         thunder,en,verb,nature,sound,1.0,wiki\n",
+    )
+    .unwrap();
+
+    let mut db = Db::open(&db_path).unwrap();
+    let report = db.import_csv(&csv_path).unwrap();
+
+    assert_eq!(report.imported, 2);
+    assert_eq!(report.unknown_class, 1);
+}
+
+#[test]
+fn import_csv_streams_and_counts() {
+    let dir = TempDir::new().unwrap();
+    let csv_path = dir.path().join("words.csv");
+    let db_path = dir.path().join("words.db");
+
+    // Create a small CSV
+    fs::write(
+        &csv_path,
+        "word,language,word_class,system,tags,seed_weight,source,etymology,origin_lang\n\
+         alpha,en,noun,nature,test,1.0,wiki,from Greek alpha,Greek\n\
+         beta,en,proper,nature,boss,1.2,curated,,\n\
+         gamma,en,prefix,nature,letter,1.0,curated,,\n",
+    )
+    .unwrap();
+
+    let mut db = Db::open(&db_path).unwrap();
+    let report = db.import_csv(&csv_path).unwrap();
+
+    assert_eq!(report.imported, 3);
+    assert_eq!(report.unknown_class, 0);
+
+    // Verify the rows are queryable
+    let all = db.all_records(None).unwrap();
+    assert_eq!(all.len(), 3);
+    assert!(all.iter().any(|r| r.word == "alpha"));
+    assert!(all.iter().any(|r| r.word == "beta"));
+    assert!(all.iter().any(|r| r.word == "gamma"));
+
+    // Verify etymology was preserved
+    let alpha = all.iter().find(|r| r.word == "alpha").unwrap();
+    assert_eq!(alpha.etymology, Some("from Greek alpha".to_string()));
 }

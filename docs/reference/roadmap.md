@@ -147,6 +147,36 @@ name-generator find "Werkzeug für Wald und Baum" --count 3 --explain
 
 ---
 
+### Architektur-Review (Juli 2026) ✅ FERTIG
+
+**Zeitraum**: Mit diesem Commit
+
+**Umgesetzt (F1/F2/F4/F5/F7/F8)**:
+- **F1**: `all_records()` unterstützt optionalen systems-Filter; Filterung läuft in SQL (WHERE system IN)
+- **F2/F5**: CSV-Import in `db::import_csv()` mit Streaming (kein Zwischen-Vec); prepared statement wird einmal erzeugt; alles in einer Transaktion
+- **F4**: `list_words()` nutzt `params_from_iter` für einheitliche Parameter-Handling
+- **F7**: Drei neue Integration-Tests (`find_systems_filter_in_sql`, `import_reports_unknown_classes`, `import_csv_streams_and_counts`)
+- **F8**: `ImportReport { imported, unknown_class }` zählt unbekannte word_class Werte; CLI gibt Warning aus, wenn unknown_class > 0
+
+**Status**: ✅ FERTIG
+- `cargo build` — Zero Warnings
+- `cargo test` — 17 grün (11 integration + 6 lookup)
+- Acceptance-Tests alle bestanden:
+  - `db import` importiert 77 Wörter, keine Warnings (aktuelle Daten)
+  - `find "forest tree" --systems nature` → 1 Ergebnis
+  - `find "forest tree" --systems myth_greek` → Exit 1 (keine Matches)
+  - `find "sky thunder king"` → "zeus"
+  - `gen --seed 42 --count 3` → deterministische Ausgabe ("Wandering atlas of Essenz" / "Heilig silvan" / "The Iron apex of the verborgen Dawn")
+
+**Aufgeschoben**:
+- **Generator-Wortlisten on demand**: Nur bei großen Datenmengen (>5000 Wörter pro System) sinnvoll
+- **FTS5-Grobfilter**: Bei ~50k+ Zeilen für schnellere Suche relevant; bis dahin: Keyword-Matching ausreichend
+
+**Offen**:
+- **Entfernung des Node.js-Prototyps**: Entscheidung ausstehend (Archiv-Anforderung?, noch gebraucht?)
+
+---
+
 ### Phase 4: Semantik-Upgrade (optional, später)
 
 **Zeitraum**: Optional, nach Phase 3

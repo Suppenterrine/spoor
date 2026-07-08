@@ -11,6 +11,12 @@ pub struct DbStats {
 }
 
 #[derive(Debug, Clone)]
+pub struct ImportReport {
+    pub imported: usize,
+    pub unknown_class: usize,
+}
+
+#[derive(Debug, Clone)]
 pub struct WordRecord {
     pub id: String,
     pub word: String,
@@ -70,6 +76,27 @@ impl WordRecord {
             origin_lang,
         })
     }
+}
+
+const INSERT_WORD_SQL: &str = "INSERT OR REPLACE INTO words (id, word, word_class, language, system, tags, seed_weight, source, etymology, origin_lang)
+ VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)";
+
+/// Execute the shared word-insert statement for one record.
+fn execute_insert(stmt: &mut rusqlite::Statement, rec: &WordRecord) -> anyhow::Result<()> {
+    stmt.execute(params![
+        rec.id,
+        rec.word,
+        rec.word_class,
+        rec.language,
+        rec.system,
+        rec.tags,
+        rec.seed_weight,
+        rec.source,
+        rec.etymology,
+        rec.origin_lang
+    ])
+    .with_context(|| format!("failed to insert word: {}", rec.word))?;
+    Ok(())
 }
 
 pub struct Db {
@@ -141,16 +168,54 @@ impl Db {
 
     pub fn insert_words(&mut self, records: &[WordRecord]) -> anyhow::Result<()> {
         let tx = self.conn.transaction().context("failed to start insert transaction")?;
+        let mut stmt = tx
+            .prepare(INSERT_WORD_SQL)
+            .context("failed to prepare insert statement")?;
         for rec in records {
-            tx.execute(
-                "INSERT OR REPLACE INTO words (id, word, word_class, language, system, tags, seed_weight, source, etymology, origin_lang)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
-                params![rec.id, rec.word, rec.word_class, rec.language, rec.system, rec.tags, rec.seed_weight, rec.source, rec.etymology, rec.origin_lang],
-            )
-            .with_context(|| format!("failed to insert word: {}", rec.word))?;
+            execute_insert(&mut stmt, rec)?;
         }
+        drop(stmt);
         tx.commit().context("failed to commit insert transaction")?;
         Ok(())
+    }
+
+    /// Stream-import CSV file into database. Counts unrecognized word_class values.
+    /// Valid word classes: prefix, noun, proper, adj, suffix, suffix_noun
+    pub fn import_csv(&mut self, path: impl AsRef<Path>) -> anyhow::Result<ImportReport> {
+        let reader = csv::Reader::from_path(path).context("failed to open CSV file")?;
+        let tx = self.conn.transaction().context("failed to start import transaction")?;
+        let mut stmt = tx
+            .prepare(INSERT_WORD_SQL)
+            .context("failed to prepare import statement")?;
+
+        let mut imported = 0;
+        let mut unknown_class = 0;
+
+        for result in reader.into_records() {
+            let record = result.context("failed to read CSV record")?;
+            let rec = WordRecord::parse_csv_record(&record)?;
+
+            // Check if word_class is recognized
+            if let Some(ref wc) = rec.word_class {
+                if !matches!(
+                    wc.as_str(),
+                    "prefix" | "noun" | "proper" | "adj" | "suffix" | "suffix_noun"
+                ) {
+                    unknown_class += 1;
+                }
+            }
+
+            // Always insert the record
+            execute_insert(&mut stmt, &rec)?;
+            imported += 1;
+        }
+
+        drop(stmt);
+        tx.commit().context("failed to commit import transaction")?;
+        Ok(ImportReport {
+            imported,
+            unknown_class,
+        })
     }
 
     /// Map a database row to a WordRecord
@@ -169,15 +234,33 @@ impl Db {
         })
     }
 
-    /// Retrieve all word records from the database, ordered by id
-    pub fn all_records(&self) -> anyhow::Result<Vec<WordRecord>> {
+    /// Helper: build WHERE system IN (...) placeholder string for n systems
+    fn in_clause(n: usize) -> String {
+        (1..=n)
+            .map(|i| format!("?{i}"))
+            .collect::<Vec<_>>()
+            .join(",")
+    }
+
+    /// Retrieve all word records from the database, optionally filtered by systems, ordered by id
+    pub fn all_records(&self, systems: Option<&[String]>) -> anyhow::Result<Vec<WordRecord>> {
+        let systems = systems.unwrap_or(&[]);
+        let query = if systems.is_empty() {
+            "SELECT id, word, word_class, language, system, tags, seed_weight, source, etymology, origin_lang FROM words ORDER BY id".to_string()
+        } else {
+            format!(
+                "SELECT id, word, word_class, language, system, tags, seed_weight, source, etymology, origin_lang FROM words WHERE system IN ({}) ORDER BY id",
+                Self::in_clause(systems.len())
+            )
+        };
+
         let mut stmt = self
             .conn
-            .prepare("SELECT id, word, word_class, language, system, tags, seed_weight, source, etymology, origin_lang FROM words ORDER BY id")
+            .prepare(&query)
             .context("failed to prepare all_records query")?;
 
         let rows = stmt
-            .query_map([], Self::map_word_row)
+            .query_map(rusqlite::params_from_iter(systems.iter().map(|s| s.as_str())), Self::map_word_row)
             .context("failed to query all records")?;
 
         let mut out = Vec::new();
@@ -194,7 +277,7 @@ impl Db {
         } else {
             format!(
                 "SELECT word, word_class FROM words WHERE system IN ({}) ORDER BY id",
-                (1..=systems.len()).map(|i| format!("?{i}")).collect::<Vec<_>>().join(",")
+                Self::in_clause(systems.len())
             )
         };
 
@@ -302,17 +385,11 @@ impl Db {
             .prepare(&query)
             .context("failed to prepare list-words query")?;
 
-        // Prepare parameters
-        let params_vec: Vec<String> = [system.map(|s| s.to_string()), language.map(|l| l.to_string())]
-            .into_iter()
-            .filter_map(|p| p)
-            .collect();
-
-        // Convert to references for query_map
-        let param_refs: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|p| p as &dyn rusqlite::ToSql).collect();
+        // Collect parameters in order, using params_from_iter with Option values
+        let params_iter = system.into_iter().chain(language.into_iter());
 
         let rows = stmt
-            .query_map(rusqlite::params_from_iter(param_refs), |row| {
+            .query_map(rusqlite::params_from_iter(params_iter), |row| {
                 Ok((
                     row.get::<_, String>(0)?,
                     row.get::<_, String>(1)?,
