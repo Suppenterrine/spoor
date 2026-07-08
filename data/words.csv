@@ -1,78 +1,78 @@
-word,language,word_class,system,tags,seed_weight,source
-silvan,la,noun,nature,"forest,tree",1.0,wiktionary
-oak,en,noun,nature,"tree,strength",1.0,wiktionary
-luminous,en,adj,nature,"light,glow",1.0,wiktionary
-zeus,la,proper,myth_greek,"sky,thunder,king",1.2,curated
-hades,la,proper,myth_greek,"underworld,death",1.1,curated
-athena,la,proper,myth_greek,"wisdom,war",1.2,curated
-helix,la,noun,craft,"spiral,bio",1.0,wiktionary
-forge,en,noun,craft,"fire,metal",1.0,wiktionary
-anvil,en,noun,craft,"iron,smith",1.0,wiktionary
-puzzle,en,noun,craft,"riddle,game",1.0,wiktionary
-aurum,la,noun,craft,"gold,value",1.1,wiktionary
-ruin,en,noun,nature,"decay,stone",1.0,wiktionary
-apex,la,noun,nature,"peak,summit",1.0,wiktionary
-flame,en,noun,nature,"fire,warmth",1.0,wiktionary
-mist,en,noun,nature,"fog,rain",1.0,wiktionary
-stern,de,noun,nature,"star,night",1.0,wiktionary
-berg,de,noun,nature,"mountain,ice",1.0,wiktionary
-wald,de,noun,nature,"forest,tree",1.0,wiktionary
-wasser,de,noun,nature,"river,flow",1.0,wiktionary
-luna,la,proper,nature,"moon,night",1.1,curated
-mars,la,proper,nature,"iron,war",1.0,curated
-sol,la,proper,nature,"sun,day",1.0,curated
-helios,la,proper,myth_greek,"sun,light",1.2,curated
-poseidon,la,proper,myth_greek,"sea,storm",1.2,curated
-artemis,la,proper,myth_greek,"hunt,moon",1.1,curated
-odysseus,la,proper,myth_greek,"journey,sea",1.1,curated
-spark,en,noun,craft,"energy,fire",1.0,wiktionary
-loom,en,noun,craft,"weave,thread",1.0,wiktionary
-cipher,en,noun,craft,"code,secret",1.0,wiktionary
-forgeheart,en,noun,craft,"fire,core",1.0,curated
-dorn,de,noun,nature,"thorn,pain",1.0,wiktionary
-eichen,de,noun,nature,"oak,strength",1.0,wiktionary
-licht,de,noun,nature,"light,bright",1.0,wiktionary
-schatten,de,noun,nature,"shadow,dark",1.0,wiktionary
-uranos,la,proper,myth_greek,"sky,creation",1.2,curated
-rhea,la,proper,myth_greek,"mother,nature",1.0,curated
-prometheus,la,proper,myth_greek,"fire,craft",1.2,curated
-atlas,la,proper,myth_greek,"weight,sky",1.1,curated
-echo,la,proper,myth_greek,"sound,repeat",1.0,curated
-clay,en,noun,craft,"mold,earth",1.0,wiktionary
-gear,en,noun,craft,"mech,turn",1.0,wiktionary
-lens,en,noun,craft,"focus,glass",1.0,wiktionary
-grid,en,noun,craft,"net,order",1.0,wiktionary
-dust,en,noun,nature,"earth,air",1.0,wiktionary
-crater,la,noun,nature,"bowl,stone",1.0,wiktionary
-vale,la,noun,nature,"valley,green",1.0,wiktionary
-frost,en,noun,nature,"ice,cold",1.0,wiktionary
-ember,en,noun,nature,"fire,ash",1.0,wiktionary
-gold,en,noun,craft,"value,shine",1.0,wiktionary
-Silent,en,prefix,nature,"quiet,calm",1.0,curated
-Golden,en,prefix,craft,"precious,shining",1.0,curated
-Iron,en,prefix,craft,"strong,metal",1.0,curated
-Crimson,en,prefix,nature,"red,blood",1.0,curated
-Ancient,en,prefix,myth_greek,"old,eternal",1.0,curated
-Wandering,en,prefix,myth_greek,"travel,journey",1.0,curated
-Ewig,de,prefix,nature,"eternal,forever",1.0,curated
-Dunkel,de,prefix,nature,"dark,shadow",1.0,curated
-Strahlend,de,prefix,craft,"radiant,bright",1.0,curated
-Mystisch,de,prefix,myth_greek,"mystical,magic",1.0,curated
-Heilig,de,prefix,myth_greek,"holy,sacred",1.0,curated
-radiant,en,adj,nature,"glowing,light",1.0,curated
-hollow,en,adj,nature,"empty,void",1.0,curated
-verborgen,de,adj,nature,"hidden,secret",1.0,curated
-aureus,la,adj,craft,"golden,bright",1.0,curated
-ethereal,en,adj,myth_greek,"delicate,spiritual",1.0,curated
-turbulent,en,adj,nature,"stormy,chaotic",1.0,curated
-serene,en,adj,myth_greek,"calm,peaceful",1.0,curated
-Glory,en,suffix,myth_greek,"honor,victory",1.0,curated
-Doom,en,suffix,nature,"fate,end",1.0,curated
-Radiance,en,suffix,craft,"brightness,shine",1.0,curated
-Serenity,en,suffix,myth_greek,"peace,calm",1.0,curated
-Dawn,en,suffix,nature,"beginning,light",1.0,curated
-Asche,de,suffix,nature,"ash,remains",1.0,curated
-Aeternitas,la,suffix,myth_greek,"eternity,forever",1.0,curated
-Macht,de,suffix,craft,"power,strength",1.0,curated
-Schicksal,de,suffix,myth_greek,"fate,destiny",1.0,curated
-Essenz,de,suffix,craft,"essence,core",1.0,curated
+word,language,word_class,system,tags,seed_weight,source,etymology,origin_lang
+silvan,la,noun,nature,"forest,tree",1.0,wiktionary,lat. silva 'Wald',la
+oak,en,noun,nature,"tree,strength",1.0,wiktionary,"altengl. āc 'Eiche', germ. *aikaz",ang
+luminous,en,adj,nature,"light,glow",1.0,wiktionary,"lat. luminosus 'leuchtend', zu lumen 'Licht'",la
+zeus,la,proper,myth_greek,"sky,thunder,king",1.2,curated,"griech. Zeus, idg. *dyeus 'Himmel, Tag'",grc
+hades,la,proper,myth_greek,"underworld,death",1.1,curated,griech. Hades 'der Unsichtbare',grc
+athena,la,proper,myth_greek,"wisdom,war",1.2,curated,"griech. Athena, Ursprung unklar",grc
+helix,la,noun,craft,"spiral,bio",1.0,wiktionary,"griech. helix 'Spirale, Windung'",grc
+forge,en,noun,craft,"fire,metal",1.0,wiktionary,"lat. fabrica 'Werkstatt', mlat. forgia 'Schmiede'",la
+anvil,en,noun,craft,"iron,smith",1.0,wiktionary,"altengl. anfilt, germ. Ursprung",ang
+puzzle,en,noun,craft,"riddle,game",1.0,wiktionary,"mittengl. poselen, Ursprung unklar",en
+aurum,la,noun,craft,"gold,value",1.1,wiktionary,lat. aurum 'Gold',la
+ruin,en,noun,nature,"decay,stone",1.0,wiktionary,"lat. ruina 'Einsturz, Trümmer'",la
+apex,la,noun,nature,"peak,summit",1.0,wiktionary,lat. apex 'Spitze',la
+flame,en,noun,nature,"fire,warmth",1.0,wiktionary,"lat. flamma 'Flamme, Lohe'",la
+mist,en,noun,nature,"fog,rain",1.0,wiktionary,"altengl. mist 'Dunst, Nebel', germ. *mistaz",ang
+stern,de,noun,nature,"star,night",1.0,wiktionary,"ahd. sterno 'Stern', germ. *sternōn",goh
+berg,de,noun,nature,"mountain,ice",1.0,wiktionary,"ahd. berg, germ. *bergaz",goh
+wald,de,noun,nature,"forest,tree",1.0,wiktionary,"ahd. wald, germ. *walþuz",goh
+wasser,de,noun,nature,"river,flow",1.0,wiktionary,"ahd. wazzar, germ. *watōr",goh
+luna,la,proper,nature,"moon,night",1.1,curated,"lat. luna 'Mond', idg. *leuk- 'hell'",la
+mars,la,proper,nature,"iron,war",1.0,curated,"lat. Mars, etr. Ursprung",la
+sol,la,proper,nature,"sun,day",1.0,curated,"lat. sol 'Sonne', idg. *s(w)el-",la
+helios,la,proper,myth_greek,"sun,light",1.2,curated,"griech. Helios 'Sonne', idg. *s(w)el-",grc
+poseidon,la,proper,myth_greek,"sea,storm",1.2,curated,"griech. Poseidon, wahrsch. myken. Ursprung",grc
+artemis,la,proper,myth_greek,"hunt,moon",1.1,curated,"griech. Artemis, Ursprung unklar",grc
+odysseus,la,proper,myth_greek,"journey,sea",1.1,curated,"griech. Odysseus, wahrsch. 'der Zornige'",grc
+spark,en,noun,craft,"energy,fire",1.0,wiktionary,"altengl. spearca 'Funke', germ. Ursprung",ang
+loom,en,noun,craft,"weave,thread",1.0,wiktionary,"altengl. lōm 'Webrahmen', germ. *laimaz",ang
+cipher,en,noun,craft,"code,secret",1.0,wiktionary,"arab. şifr 'Null, Ziffer'",ar
+forgeheart,en,noun,craft,"fire,core",1.0,curated,engl. Kunstwort aus forge + heart,en
+dorn,de,noun,nature,"thorn,pain",1.0,wiktionary,"ahd. dorn, germ. *þurnaz",goh
+eichen,de,noun,nature,"oak,strength",1.0,wiktionary,"ahd. eih 'Eiche', germ. *aiks",goh
+licht,de,noun,nature,"light,bright",1.0,wiktionary,"ahd. lioht, germ. *leuhta-",goh
+schatten,de,noun,nature,"shadow,dark",1.0,wiktionary,"ahd. scato, germ. *skadwaz",goh
+uranos,la,proper,myth_greek,"sky,creation",1.2,curated,"griech. Uranos 'Himmel', idg. *h₂wer-",grc
+rhea,la,proper,myth_greek,"mother,nature",1.0,curated,"griech. Rhea, Ursprung unklar",grc
+prometheus,la,proper,myth_greek,"fire,craft",1.2,curated,griech. Prometheus 'der Vorausdenkende',grc
+atlas,la,proper,myth_greek,"weight,sky",1.1,curated,"griech. Atlas, zu tlēnai 'tragen, dulden'",grc
+echo,la,proper,myth_greek,"sound,repeat",1.0,curated,"griech. Echo 'Widerhall, Gegenschall'",grc
+clay,en,noun,craft,"mold,earth",1.0,wiktionary,"altengl. clǣg 'Ton, Lehm', germ. Ursprung",ang
+gear,en,noun,craft,"mech,turn",1.0,wiktionary,"altengl. gearwe 'Ausrüstung', germ. Ursprung",ang
+lens,en,noun,craft,"focus,glass",1.0,wiktionary,"lat. lens 'Linse', Pflanzenwort",la
+grid,en,noun,craft,"net,order",1.0,wiktionary,"mittengl. grid, Ursprung unklar",en
+dust,en,noun,nature,"earth,air",1.0,wiktionary,"altengl. dūst 'Staub', germ. Ursprung",ang
+crater,la,noun,nature,"bowl,stone",1.0,wiktionary,griech. kratēr 'Mischkrug',grc
+vale,la,noun,nature,"valley,green",1.0,wiktionary,"lat. vallis 'Tal, Senke'",la
+frost,en,noun,nature,"ice,cold",1.0,wiktionary,"altengl. forst 'Frost', germ. *frustaz",ang
+ember,en,noun,nature,"fire,ash",1.0,wiktionary,"altengl. æmyrge 'Glut', germ. Ursprung",ang
+gold,en,noun,craft,"value,shine",1.0,wiktionary,"altengl. gold 'Gold', germ. *gulþam",ang
+Silent,en,prefix,nature,"quiet,calm",1.0,curated,lat. silens 'schweigsam',la
+Golden,en,prefix,craft,"precious,shining",1.0,curated,"altengl. golden 'golden', zu gold",ang
+Iron,en,prefix,craft,"strong,metal",1.0,curated,"altengl. īren 'eisern', germ. Ursprung",ang
+Crimson,en,prefix,nature,"red,blood",1.0,curated,arab. qirmiz 'Kermes (Farbstoff)',ar
+Ancient,en,prefix,myth_greek,"old,eternal",1.0,curated,"afrz. ancien, vlat. *anteanus 'vorherig'",fr
+Wandering,en,prefix,myth_greek,"travel,journey",1.0,curated,"altengl. wandrung 'Wanderung', germ. Ursprung",ang
+Ewig,de,prefix,nature,"eternal,forever",1.0,curated,"ahd. ēwīg, zu ēwa 'Ewigkeit, Gesetz'",goh
+Dunkel,de,prefix,nature,"dark,shadow",1.0,curated,"ahd. tunkal, germ. Ursprung",goh
+Strahlend,de,prefix,craft,"radiant,bright",1.0,curated,"zu dt. Strahl, ahd. strāla 'Pfeil, Blitz'",goh
+Mystisch,de,prefix,myth_greek,"mystical,magic",1.0,curated,griech. mystikos 'geheimnisvoll',grc
+Heilig,de,prefix,myth_greek,"holy,sacred",1.0,curated,"ahd. heilag, germ. *hailaga- 'ganz, gesund'",goh
+radiant,en,adj,nature,"glowing,light",1.0,curated,"lat. radians 'strahlend', zu radius",la
+hollow,en,adj,nature,"empty,void",1.0,curated,"altengl. holh 'Höhle', germ. Ursprung",ang
+verborgen,de,adj,nature,"hidden,secret",1.0,curated,"zu bergen, ahd. bergan 'in Sicherheit bringen'",goh
+aureus,la,adj,craft,"golden,bright",1.0,curated,"lat. aureus 'golden', zu aurum 'Gold'",la
+ethereal,en,adj,myth_greek,"delicate,spiritual",1.0,curated,"lat. ethereus, griech. aither 'Himmelsfeuer'",la
+turbulent,en,adj,nature,"stormy,chaotic",1.0,curated,"lat. turbulentus 'verworren', zu turba",la
+serene,en,adj,myth_greek,"calm,peaceful",1.0,curated,"lat. serenus 'heiter, klar'",la
+Glory,en,suffix,myth_greek,"honor,victory",1.0,curated,"lat. gloria 'Ruhm, Ehre'",la
+Doom,en,suffix,nature,"fate,end",1.0,curated,"altengl. dōm 'Urteil', germ. *dōmaz",ang
+Radiance,en,suffix,craft,"brightness,shine",1.0,curated,"lat. radians 'strahlend', zu radius",la
+Serenity,en,suffix,myth_greek,"peace,calm",1.0,curated,"lat. serenitas 'Heiterkeit', zu serenus",la
+Dawn,en,suffix,nature,"beginning,light",1.0,curated,"altengl. dagian 'dämmern', germ. *dagaz",ang
+Asche,de,suffix,nature,"ash,remains",1.0,curated,"ahd. asca, germ. *askōn",goh
+Aeternitas,la,suffix,myth_greek,"eternity,forever",1.0,curated,"lat. aeternitas 'Ewigkeit', zu aeternus",la
+Macht,de,suffix,craft,"power,strength",1.0,curated,"ahd. maht, germ. *mahtiz",goh
+Schicksal,de,suffix,myth_greek,"fate,destiny",1.0,curated,nhd. Bildung zu schicken (17. Jh.),de
+Essenz,de,suffix,craft,"essence,core",1.0,curated,"lat. essentia 'Wesen, Sein'",la

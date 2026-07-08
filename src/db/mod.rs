@@ -20,20 +20,36 @@ pub struct WordRecord {
     pub tags: Option<String>,
     pub seed_weight: f64,
     pub source: Option<String>,
+    pub etymology: Option<String>,
+    pub origin_lang: Option<String>,
 }
 
 impl WordRecord {
+    /// Convert non-empty strings to Some, empty or whitespace-only to None
+    fn non_empty(s: Option<&str>) -> Option<String> {
+        s.and_then(|v| {
+            let trimmed = v.trim();
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed.to_string())
+            }
+        })
+    }
+
     pub fn parse_csv_record(r: &csv::StringRecord) -> anyhow::Result<Self> {
         let word = r.get(0).map(|s| s.trim().to_string()).unwrap_or_default();
-        let language = r.get(1).map(|s| s.trim().to_string());
-        let word_class = r.get(2).map(|s| s.trim().to_string());
-        let system = r.get(3).map(|s| s.trim().to_string());
-        let tags = r.get(4).map(|s| s.trim().to_string());
+        let language = Self::non_empty(r.get(1));
+        let word_class = Self::non_empty(r.get(2));
+        let system = Self::non_empty(r.get(3));
+        let tags = Self::non_empty(r.get(4));
         let seed_weight = r
             .get(5)
             .and_then(|s| s.trim().parse::<f64>().ok())
             .unwrap_or(1.0);
-        let source = r.get(6).map(|s| s.trim().to_string());
+        let source = Self::non_empty(r.get(6));
+        let etymology = Self::non_empty(r.get(7));
+        let origin_lang = Self::non_empty(r.get(8));
 
         let id = if let Some(ref lang) = language {
             format!("{}_{}", lang, word)
@@ -50,6 +66,8 @@ impl WordRecord {
             tags,
             seed_weight,
             source,
+            etymology,
+            origin_lang,
         })
     }
 }
@@ -64,6 +82,37 @@ impl Db {
         let mut db = Self { conn };
         db.ensure_schema()?;
         Ok(db)
+    }
+
+    fn ensure_column(&mut self, table: &str, column: &str, decl: &str) -> anyhow::Result<()> {
+        // Check if column exists by querying PRAGMA table_info
+        let mut stmt = self
+            .conn
+            .prepare(&format!("PRAGMA table_info({})", table))
+            .context("failed to prepare PRAGMA table_info")?;
+
+        let mut exists = false;
+        let mut rows = stmt
+            .query([])
+            .context("failed to query table_info")?;
+
+        while let Some(row) = rows.next().context("failed to read table_info row")? {
+            let col_name: String = row.get(1).context("failed to get column name")?;
+            if col_name == column {
+                exists = true;
+                break;
+            }
+        }
+
+        if !exists {
+            self.conn
+                .execute(
+                    &format!("ALTER TABLE {} ADD COLUMN {} {}", table, column, decl),
+                    [],
+                )
+                .with_context(|| format!("failed to add column {} to {}", column, table))?;
+        }
+        Ok(())
     }
 
     fn ensure_schema(&mut self) -> anyhow::Result<()> {
@@ -82,6 +131,11 @@ impl Db {
                 [],
             )
             .context("failed to create words table")?;
+
+        // Migrate: add etymology and origin_lang columns if they don't exist
+        self.ensure_column("words", "etymology", "TEXT")?;
+        self.ensure_column("words", "origin_lang", "TEXT")?;
+
         Ok(())
     }
 
@@ -89,14 +143,50 @@ impl Db {
         let tx = self.conn.transaction().context("failed to start insert transaction")?;
         for rec in records {
             tx.execute(
-                "INSERT OR REPLACE INTO words (id, word, word_class, language, system, tags, seed_weight, source)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-                params![rec.id, rec.word, rec.word_class, rec.language, rec.system, rec.tags, rec.seed_weight, rec.source],
+                "INSERT OR REPLACE INTO words (id, word, word_class, language, system, tags, seed_weight, source, etymology, origin_lang)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+                params![rec.id, rec.word, rec.word_class, rec.language, rec.system, rec.tags, rec.seed_weight, rec.source, rec.etymology, rec.origin_lang],
             )
             .with_context(|| format!("failed to insert word: {}", rec.word))?;
         }
         tx.commit().context("failed to commit insert transaction")?;
         Ok(())
+    }
+
+    /// Map a database row to a WordRecord
+    #[allow(dead_code)]
+    fn map_word_row(row: &rusqlite::Row) -> rusqlite::Result<WordRecord> {
+        Ok(WordRecord {
+            id: row.get(0)?,
+            word: row.get(1)?,
+            word_class: row.get(2)?,
+            language: row.get(3)?,
+            system: row.get(4)?,
+            tags: row.get(5)?,
+            seed_weight: row.get(6)?,
+            source: row.get(7)?,
+            etymology: row.get(8)?,
+            origin_lang: row.get(9)?,
+        })
+    }
+
+    /// Retrieve all word records from the database, ordered by id
+    #[allow(dead_code)]
+    pub fn all_records(&self) -> anyhow::Result<Vec<WordRecord>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT id, word, word_class, language, system, tags, seed_weight, source, etymology, origin_lang FROM words ORDER BY id")
+            .context("failed to prepare all_records query")?;
+
+        let rows = stmt
+            .query_map([], Self::map_word_row)
+            .context("failed to query all records")?;
+
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row.context("failed to read word row")?);
+        }
+        Ok(out)
     }
 
     pub fn words_by_class(&self, systems: Option<&[String]>) -> anyhow::Result<Vec<(String, String)>> {

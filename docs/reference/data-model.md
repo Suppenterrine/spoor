@@ -19,14 +19,16 @@ Die CSV muss **genau diese Spalten in dieser Reihenfolge** haben:
 | 4 | `tags` | String | Nein | Komma-getrennte Tags (z. B. "fire,sky,warmth") |
 | 5 | `seed_weight` | Float | Nein | Gewicht für Sampling (Standard: 1.0, zukünftig) |
 | 6 | `source` | String | Nein | Herkunft (z. B. "wiktionary", "curated") |
+| 7 | `etymology` | String | Nein | Etymologische Erklärung auf Deutsch (z. B. "lat. silva 'Wald'") |
+| 8 | `origin_lang` | String | Nein | ISO-Code der Herkunftssprache (z. B. "la", "grc", "ang") |
 
 ### Beispiel
 
 ```csv
-word,language,word_class,system,tags,seed_weight,source
-silvan,la,noun,nature,"forest,tree",1.0,wiktionary
-oak,en,noun,nature,"tree,strength",1.0,wiktionary
-zeus,la,proper,myth_greek,"sky,thunder,king",1.2,curated
+word,language,word_class,system,tags,seed_weight,source,etymology,origin_lang
+silvan,la,noun,nature,"forest,tree",1.0,wiktionary,"lat. silva 'Wald'",la
+oak,en,noun,nature,"tree,strength",1.0,wiktionary,"altengl. āc 'Eiche', germ. *aikaz",ang
+zeus,la,proper,myth_greek,"sky,thunder,king",1.2,curated,"griech. Zeus, idg. *dyeus 'Himmel, Tag'",grc
 ```
 
 ### Wortklassen
@@ -99,7 +101,9 @@ CREATE TABLE IF NOT EXISTS words (
     system TEXT,
     tags TEXT,
     seed_weight REAL DEFAULT 1.0,
-    source TEXT
+    source TEXT,
+    etymology TEXT,
+    origin_lang TEXT
 );
 ```
 
@@ -115,6 +119,8 @@ CREATE TABLE IF NOT EXISTS words (
 | `tags` | TEXT | Nein | Komma-getrennte Tags (optional) |
 | `seed_weight` | REAL | Nein | Gewicht (Standard: 1.0) |
 | `source` | TEXT | Nein | Quelle (optional) |
+| `etymology` | TEXT | Nein | Etymologische Erklärung auf Deutsch (optional) |
+| `origin_lang` | TEXT | Nein | ISO-Code der Herkunftssprache (optional) |
 
 ### Duplikat-Vermeidung
 
@@ -197,9 +203,9 @@ Name: "The Wandering forge of luminous atlas"
 
 ---
 
-## Zukünftige Schema-Erweiterungen
+## Implementierte Schema-Erweiterungen
 
-### Phase 2 — Etymologie und Herkunftssprache
+### Phase 2 — Etymologie und Herkunftssprache ✅ FERTIG
 
 **Neue Spalten** (in CSV und Schema):
 
@@ -213,12 +219,16 @@ CSV-Spalte 9: `origin_lang`
 
 Beispiel:
 ```
-zeus,la,proper,myth_greek,"sky,thunder",1.2,curated,"aus griechisch Dias, Sky-Father",grc
+zeus,la,proper,myth_greek,"sky,thunder",1.2,curated,"griech. Zeus, idg. *dyeus 'Himmel, Tag'",grc
 ```
 
 **Nutzen**:
 - Phase 3 `find`: Begründung ausgeben ("athena" kommt aus griechisch "athenai" = Weisheit)
 - Nullable (zukünftige Datenbestände können leer sein)
+
+**Backward-Kompatibilität**: 7-spaltige CSVs (ohne `etymology` und `origin_lang`) werden beim Import mit leeren Werten importiert.
+
+## Zukünftige Schema-Erweiterungen
 
 ### Phase 3 — Reverse-Lookup mit FTS
 

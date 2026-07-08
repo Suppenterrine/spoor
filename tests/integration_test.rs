@@ -219,6 +219,104 @@ fn read_csv(path: &std::path::Path) -> Vec<name_generator::db::WordRecord> {
 }
 
 #[test]
+fn csv_with_etymology_roundtrip() {
+    let dir = TempDir::new().unwrap();
+    let csv_path = dir.path().join("words.csv");
+    let db_path = dir.path().join("words.db");
+
+    // Create 9-column CSV with etymology and origin_lang; one row with empty values
+    fs::write(
+        &csv_path,
+        "word,language,word_class,system,tags,seed_weight,source,etymology,origin_lang\n\
+         alpha,en,noun,nature,test,1.0,wiki,from Greek alpha,Greek\n\
+         beta,en,proper,nature,boss,1.2,curated,,\n",
+    )
+    .unwrap();
+
+    let records = read_csv(&csv_path);
+    assert_eq!(records.len(), 2);
+
+    // Check first record has etymology and origin_lang
+    assert_eq!(records[0].etymology, Some("from Greek alpha".to_string()));
+    assert_eq!(records[0].origin_lang, Some("Greek".to_string()));
+
+    // Check second record has None for empty fields
+    assert_eq!(records[1].etymology, None);
+    assert_eq!(records[1].origin_lang, None);
+
+    // Insert into database and verify roundtrip
+    let mut db = Db::open(&db_path).unwrap();
+    db.insert_words(&records).unwrap();
+
+    let retrieved = db.all_records().unwrap();
+    assert_eq!(retrieved.len(), 2);
+
+    assert_eq!(retrieved[0].word, "alpha");
+    assert_eq!(retrieved[0].etymology, Some("from Greek alpha".to_string()));
+    assert_eq!(retrieved[0].origin_lang, Some("Greek".to_string()));
+
+    assert_eq!(retrieved[1].word, "beta");
+    assert_eq!(retrieved[1].etymology, None);
+    assert_eq!(retrieved[1].origin_lang, None);
+}
+
+#[test]
+fn schema_migration_adds_columns() {
+    let dir = TempDir::new().unwrap();
+    let db_path = dir.path().join("words.db");
+
+    // Create an old-style database with only the original 8 columns
+    {
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        conn.execute(
+            "CREATE TABLE words (
+                id TEXT PRIMARY KEY,
+                word TEXT NOT NULL,
+                word_class TEXT,
+                language TEXT,
+                system TEXT,
+                tags TEXT,
+                seed_weight REAL DEFAULT 1.0,
+                source TEXT
+            )",
+            [],
+        )
+        .unwrap();
+
+        // Insert a test row
+        conn.execute(
+            "INSERT INTO words (id, word, word_class, language, system, tags, seed_weight, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            rusqlite::params!["en_oak", "oak", "noun", "en", "nature", "tree,strength", 1.0, "wiki"],
+        )
+        .unwrap();
+    }
+
+    // Now open with Db::open, which should migrate the schema
+    let db = Db::open(&db_path).unwrap();
+
+    // Verify that all_records works and returns the row with etymology and origin_lang as None
+    let records = db.all_records().unwrap();
+    assert_eq!(records.len(), 1);
+    assert_eq!(records[0].word, "oak");
+    assert_eq!(records[0].etymology, None);
+    assert_eq!(records[0].origin_lang, None);
+
+    // Verify the columns were added by checking PRAGMA table_info
+    let conn = rusqlite::Connection::open(&db_path).unwrap();
+    let mut stmt = conn
+        .prepare("PRAGMA table_info(words)")
+        .unwrap();
+    let columns: Vec<String> = stmt
+        .query_map([], |row| row.get(1))
+        .unwrap()
+        .map(|r| r.unwrap())
+        .collect();
+
+    assert!(columns.contains(&"etymology".to_string()));
+    assert!(columns.contains(&"origin_lang".to_string()));
+}
+
+#[test]
 fn db_stats_and_class_query() {
     let dir = TempDir::new().unwrap();
     let csv_path = dir.path().join("words.csv");

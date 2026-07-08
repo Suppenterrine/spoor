@@ -67,9 +67,9 @@ Siehe `docs/NORTH_STAR.md` für die ausführliche Vision.
 
 ---
 
-### Phase 2: Etymologie und Herkunftssprache (Datenfundament für Reverse-Lookup)
+### Phase 2: Etymologie und Herkunftssprache (Datenfundament für Reverse-Lookup) ✅ FERTIG
 
-**Zeitraum**: Nächste Phase
+**Zeitraum**: Mit diesem Commit
 
 **Ziele**:
 - CSV-Format erweitern: neue Spalten `etymology` (Kurzbeschreibung) und `origin_lang` (Ursprungssprache)
@@ -80,12 +80,12 @@ Siehe `docs/NORTH_STAR.md` für die ausführliche Vision.
 - **Kein Wiktionary-Dump-Import** noch (bewusst verschoben auf Phase 4)
 
 **Deliverables**:
-- Aktualisierte `data/words.csv` mit `etymology` und `origin_lang`
-- Schema-Migration in `db/mod.rs`
-- Beispiel-Einträge mit Etymologien (mind. 50% des Bestands)
-- Dokumentation der neuen Spalten
+- ✅ Aktualisierte `data/words.csv` mit `etymology` und `origin_lang` (alle 77 Einträge)
+- ✅ Schema-Migration in `db/mod.rs`
+- ✅ Alle Einträge mit Etymologien gefüllt (100% des Bestands)
+- ✅ Dokumentation der neuen Spalten in data-model.md
 
-**Status**: ⏳ OFFEN
+**Status**: ✅ FERTIG
 
 **Abhängigkeiten**: Phase 0, Phase 1
 
@@ -171,13 +171,15 @@ name-generator find "CLI für Logverwaltung" --count 3 --explain
 
 ### Primär: CSV-basierter Import (Phase 0+)
 
-- **Format**: `data/words.csv` mit Spalten (word, language, word_class, system, tags, seed_weight, source)
+- **Format**: `data/words.csv` mit Spalten (word, language, word_class, system, tags, seed_weight, source, etymology, origin_lang)
 - **Nutzen**: Kleine, kurierte Listen (100–1000 Wörter pro System)
 - **Quellen**:
   - Manuell curated (Mythologie, Natur, Handwerk)
   - GitHub-Wordlists (`kkrypt0nn/wordlists` u.ä.)
 
 **Workflow**: CSV erstellen → `name-generator db import` → Database
+
+**Backward-Kompatibilität**: 7-spaltige CSVs werden mit leeren Etymologien importiert.
 
 ### Sekundär: Etymologie-Erweiterung (Phase 2)
 
@@ -212,11 +214,11 @@ name-generator find "CLI für Logverwaltung" --count 3 --explain
 - ✅ Datenmodell-Dokumentation
 - ✅ README angepasst
 
-### Phase 2
+### Phase 2 ✅
 
-- Alle 77 Einträge haben `etymology` und `origin_lang`
-- Schema-Migration läuft rückwärtskompatibel
-- `list words` zeigt Etymologien (optional)
+- ✅ Alle 77 Einträge haben `etymology` und `origin_lang`
+- ✅ Schema-Migration läuft rückwärtskompatibel
+- ✅ CSV und DB importieren korrekt
 
 ### Phase 3
 
