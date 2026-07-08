@@ -10,15 +10,25 @@ use crate::generator::{Generator, SeededRng, WordLists};
 
 #[derive(Parser, Debug)]
 #[command(name = "name-generator")]
-#[command(about = "Generates themed names from a local word database", long_about = None)]
+#[command(version)]
+#[command(about = "Generates themed names from a local word database")]
+#[command(arg_required_else_help = true)]
+#[command(subcommand_required = true)]
+#[command(propagate_version = true)]
+#[command(after_help = "For more information, see docs/reference/cli.md")]
 pub struct Cli {
     #[command(subcommand)]
     command: Commands,
+
+    /// Path to configuration file
+    #[arg(long, global = true, default_value = "config.toml")]
+    config: String,
 }
 
 #[derive(Subcommand, Debug)]
 enum Commands {
     /// Generate one or more names
+    #[command(after_help = "EXAMPLES:\n  Generate 1 name with a random seed:\n    name-generator gen\n\n  Generate 3 names with seed 42:\n    name-generator gen --seed 42 --count 3\n\n  Generate names only from the 'nature' system:\n    name-generator gen --systems nature --count 5")]
     Gen {
         /// Seed for deterministic generation
         #[arg(long)]
@@ -36,29 +46,47 @@ enum Commands {
         #[arg(long)]
         template: Option<String>,
 
-        /// Output format
+        /// Output format (text or json)
         #[arg(long, default_value = "text")]
         format: String,
-
-        /// Alternate config path
-        #[arg(long, default_value = "config.toml")]
-        config: String,
     },
-    /// Import CSV into the database
+    /// Explore the word database
+    #[command(subcommand)]
+    List(ListCommand),
+    /// Database maintenance
+    #[command(subcommand)]
+    Db(DbCommand),
+}
+
+#[derive(Subcommand, Debug)]
+enum ListCommand {
+    /// List all systems with word counts
+    Systems,
+    /// List all languages with word counts
+    Languages,
+    /// List all word classes with word counts
+    Classes,
+    /// List words (optionally filtered by system and/or language)
+    Words {
+        /// Filter by system
+        #[arg(long)]
+        system: Option<String>,
+
+        /// Filter by language
+        #[arg(long)]
+        language: Option<String>,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum DbCommand {
+    /// Import a CSV into the database
     Import {
         /// CSV file path
         path: PathBuf,
-
-        /// Alternate config path
-        #[arg(long, default_value = "config.toml")]
-        config: String,
     },
     /// Database statistics
-    Info {
-        /// Alternate config path
-        #[arg(long, default_value = "config.toml")]
-        config: String,
-    },
+    Info,
 }
 
 #[derive(Serialize)]
@@ -76,9 +104,8 @@ impl Cli {
                 systems,
                 template,
                 format,
-                config,
             } => {
-                let (cfg, db) = open_context(&config)?;
+                let (cfg, db) = open_context(&self.config)?;
                 let words = load_wordlists(&db, systems.as_deref())?;
 
                 let generator = match template {
@@ -97,7 +124,7 @@ impl Cli {
                         Some(name) => names.push(name),
                         None => {
                             if names.is_empty() {
-                                return Err(anyhow::anyhow!("no words available - import data first (name-generator import data/words.csv)"));
+                                return Err(anyhow::anyhow!("no words available - import data first (name-generator db import data/words.csv)"));
                             } else {
                                 eprintln!("Warning: only {} unique names were possible; stopping early", names.len());
                                 break;
@@ -121,23 +148,62 @@ impl Cli {
                     }
                 }
             }
-            Commands::Import { path, config } => {
-                let (_cfg, mut db) = open_context(&config)?;
-                let records = csv_import::read_words(&path)?;
-                db.insert_words(&records)?;
-                println!("Imported {} words.", records.len());
-            }
-            Commands::Info { config } => {
-                let (_cfg, db) = open_context(&config)?;
-                let stats = db.stats()?;
-                println!("Total words: {}", stats.total);
-                println!("\nBy language:");
-                for (lang, count) in &stats.by_language {
-                    println!("  {}: {}", lang, count);
+            Commands::List(list_cmd) => {
+                let (_cfg, db) = open_context(&self.config)?;
+                match list_cmd {
+                    ListCommand::Systems => {
+                        let systems = db.list_systems()?;
+                        for (name, count) in systems {
+                            println!("{:<20} {}", name, count);
+                        }
+                    }
+                    ListCommand::Languages => {
+                        let languages = db.list_languages()?;
+                        for (name, count) in languages {
+                            println!("{:<20} {}", name, count);
+                        }
+                    }
+                    ListCommand::Classes => {
+                        let classes = db.list_classes()?;
+                        for (name, count) in classes {
+                            println!("{:<20} {}", name, count);
+                        }
+                    }
+                    ListCommand::Words { system, language } => {
+                        let words = db.list_words(system.as_deref(), language.as_deref())?;
+                        for (word, lang, sys, class) in words {
+                            println!(
+                                "{:<20} {} / {} / {}",
+                                word,
+                                if lang.is_empty() { "?" } else { &lang },
+                                if sys.is_empty() { "?" } else { &sys },
+                                if class.is_empty() { "?" } else { &class }
+                            );
+                        }
+                    }
                 }
-                println!("\nBy system:");
-                for (sys, count) in &stats.by_system {
-                    println!("  {}: {}", sys, count);
+            }
+            Commands::Db(db_cmd) => {
+                match db_cmd {
+                    DbCommand::Import { path } => {
+                        let (_cfg, mut db) = open_context(&self.config)?;
+                        let records = csv_import::read_words(&path)?;
+                        db.insert_words(&records)?;
+                        println!("Imported {} words.", records.len());
+                    }
+                    DbCommand::Info => {
+                        let (_cfg, db) = open_context(&self.config)?;
+                        let stats = db.stats()?;
+                        println!("Total words: {}", stats.total);
+                        println!("\nBy language:");
+                        for (lang, count) in &stats.by_language {
+                            println!("  {}: {}", lang, count);
+                        }
+                        println!("\nBy system:");
+                        for (sys, count) in &stats.by_system {
+                            println!("  {}: {}", sys, count);
+                        }
+                    }
                 }
             }
         }

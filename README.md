@@ -147,30 +147,39 @@ welche in `.gitignore` eingetragen und nicht versioniert wird.
 
 ### Kommandozeile
 
+Die Rust-CLI folgt einer hierarchischen Subcommand-Struktur. Vollständige Referenz: siehe `docs/reference/cli.md`.
+
 Unter Windows/MSYS2-Shell:
 
 ```bash
-# Import aus CSV in die interne Datenbank (erzeugt data/words.db)
-target/release/name-generator.exe import data/words.csv
+# Datenbankoperationen
+target/release/name-generator.exe db import data/words.csv
+target/release/name-generator.exe db info
 
-# Ein oder mehrere Namen erzeugen (Seed wird erzeugt und gedruckt, wenn nicht angegeben)
+# Datenbank erkunden
+target/release/name-generator.exe list systems
+target/release/name-generator.exe list languages
+target/release/name-generator.exe list classes
+target/release/name-generator.exe list words --system nature --language en
+
+# Namen generieren (Seed wird automatisch erzeugt und gedruckt, wenn nicht angegeben)
 target/release/name-generator.exe gen
-target/release/name-generator.exe gen --count 5
-target/release/name-generator.exe gen --seed 42
+target/release/name-generator.exe gen --seed 42 --count 3
+target/release/name-generator.exe gen --systems nature --count 5
 
 # Mit benutzerdefinierten Template (Platzhalter: {prefix}, {word}, {suffix_adj}, {suffix})
 target/release/name-generator.exe gen --template "The {word} of {suffix}"
 
-# Datenbankinfo anzeigen (mit --config alternativ konfigurierbar)
-target/release/name-generator.exe info
-target/release/name-generator.exe info --config config.toml
+# Verschiedene Ausgabeformate
+target/release/name-generator.exe gen --seed 42 --format json
 ```
 
 In PowerShell/CMD kann alternativ das folgende Pattern verwendet werden:
 
 ```powershell
-.\target\release\name-generator.exe import data/words.csv
-.\target\release\name-generator.exe gen --count 5
+.\target\release\name-generator.exe db import data/words.csv
+.\target\release\name-generator.exe gen --seed 42 --count 3
+.\target\release\name-generator.exe list systems
 ```
 
 ### Windows-Hinweis
@@ -179,3 +188,13 @@ Pfadangaben wie `data/words.db` funktionieren weiterhin; Cargo/Rust-Stdlib akzep
 sowohl `/` als auch `\`. Wenn erwünscht, können Pfade trotzdem mit Backslashes
 notiert werden. Der Import-Befehl schreibt in `data/words.db`, der Build schreibt
 nach `target/`, das wegen `/target` in `.gitignore` nicht versioniert wird.
+
+### Referenzdokumentation
+
+Für vollständige Informationen siehe:
+
+- **`docs/reference/cli.md`** — Vollständige Kommandoreferenz mit Beispielen
+- **`docs/reference/architecture.md`** — Übersicht der Modulstruktur und Datenflüsse
+- **`docs/reference/data-model.md`** — CSV-Format und SQLite-Schema
+- **`docs/reference/roadmap.md`** — Projekt-Phasen und Status
+- **`docs/NORTH_STAR.md`** — Projekt-Vision und Leitgedanke

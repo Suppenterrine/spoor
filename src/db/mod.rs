@@ -165,4 +165,80 @@ impl Db {
         })
     }
 
+    /// List all systems with word counts, ordered by count DESC then name ASC.
+    pub fn list_systems(&self) -> anyhow::Result<Vec<(String, usize)>> {
+        self.query_group_by(
+            "SELECT system, COUNT(*) as cnt FROM words GROUP BY system ORDER BY cnt DESC, system ASC"
+        )
+    }
+
+    /// List all languages with word counts, ordered by count DESC then name ASC.
+    pub fn list_languages(&self) -> anyhow::Result<Vec<(String, usize)>> {
+        self.query_group_by(
+            "SELECT language, COUNT(*) as cnt FROM words GROUP BY language ORDER BY cnt DESC, language ASC"
+        )
+    }
+
+    /// List all word classes with word counts, ordered by count DESC then name ASC.
+    pub fn list_classes(&self) -> anyhow::Result<Vec<(String, usize)>> {
+        self.query_group_by(
+            "SELECT word_class, COUNT(*) as cnt FROM words GROUP BY word_class ORDER BY cnt DESC, word_class ASC"
+        )
+    }
+
+    /// List words with optional system and language filters.
+    /// Returns (word, language, system, word_class) ordered by word ASC.
+    pub fn list_words(&self, system: Option<&str>, language: Option<&str>) -> anyhow::Result<Vec<(String, String, String, String)>> {
+        // Build WHERE clause conditions
+        let mut conditions = Vec::new();
+        if system.is_some() {
+            conditions.push("system = ?1");
+        }
+        if language.is_some() {
+            conditions.push(if system.is_some() { "language = ?2" } else { "language = ?1" });
+        }
+
+        let where_clause = if conditions.is_empty() {
+            String::new()
+        } else {
+            format!("WHERE {}", conditions.join(" AND "))
+        };
+
+        let query = format!(
+            "SELECT word, language, system, word_class FROM words {} ORDER BY word",
+            where_clause
+        );
+
+        let mut stmt = self
+            .conn
+            .prepare(&query)
+            .context("failed to prepare list-words query")?;
+
+        // Prepare parameters
+        let params_vec: Vec<String> = [system.map(|s| s.to_string()), language.map(|l| l.to_string())]
+            .into_iter()
+            .filter_map(|p| p)
+            .collect();
+
+        // Convert to references for query_map
+        let param_refs: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|p| p as &dyn rusqlite::ToSql).collect();
+
+        let rows = stmt
+            .query_map(rusqlite::params_from_iter(param_refs), |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                ))
+            })
+            .context("failed to query words")?;
+
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row.context("failed to read word row")?);
+        }
+        Ok(out)
+    }
+
 }
