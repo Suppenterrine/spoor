@@ -21,8 +21,8 @@ The Iron apex of the verborgen Dawn
 Voraussetzung: [Rust-Toolchain](https://rustup.rs/) (cargo).
 
 ```bash
-git clone https://github.com/Suppenterrine/Name-Generator.git
-cd Name-Generator
+git clone https://github.com/Suppenterrine/spoor.git
+cd spoor
 cargo build --release
 ```
 

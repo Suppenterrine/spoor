@@ -23,3 +23,21 @@ sources:
     language: la
     system: wiktionary_la
     max_words: 500
+  - id: kaikki-el
+    backend: wiktextract-jsonl
+    url: https://kaikki.org/dictionary/Greek/kaikki.org-dictionary-Greek.jsonl
+    language: el
+    system: wiktionary_el
+    max_words: 500
+  - id: kaikki-grc
+    backend: wiktextract-jsonl
+    url: https://kaikki.org/dictionary/Ancient%20Greek/kaikki.org-dictionary-AncientGreek.jsonl
+    language: grc
+    system: wiktionary_grc
+    max_words: 500
+  - id: kaikki-he
+    backend: wiktextract-jsonl
+    url: https://kaikki.org/dictionary/Hebrew/kaikki.org-dictionary-Hebrew.jsonl
+    language: he
+    system: wiktionary_he
+    max_words: 500
