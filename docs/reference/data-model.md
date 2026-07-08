@@ -86,6 +86,47 @@ Zukünftig: Für Quellenangabe in Erklärungen (Phase 3+).
 
 ---
 
+## sources.yaml — Konfiguration für `db fetch`
+
+Eingabedatei für `name-generator db fetch [--file <PATH>]`. Standardpfad: `sources.yaml` im Projektwurzelverzeichnis. Beschreibt Online-Wortquellen, die per HTTP gestreamt und geparst werden (siehe `docs/reference/architecture.md`, Abschnitt "fetch-Modul").
+
+### Format
+
+```yaml
+sources:
+  - id: kaikki-de
+    backend: wiktextract-jsonl
+    url: https://kaikki.org/dictionary/German/kaikki.org-dictionary-German.jsonl
+    language: de
+    system: wiktionary_de
+    max_words: 500
+```
+
+### Felder
+
+| Feld | Typ | Erforderlich | Beschreibung |
+|------|-----|------------|-------------|
+| `id` | String | Ja | Eindeutige Quellen-ID. Wird für `--only <ids>` verwendet und in der Progress-Anzeige gezeigt. |
+| `backend` | String | Ja | Parser-Typ. Aktuell unterstützt: `wiktextract-jsonl` (s. u.). Unbekannte Werte lassen `load_sources()` mit einer Fehlermeldung abbrechen. |
+| `url` | String | Ja | HTTP(S)-URL der Quelldatei. Endet die URL auf `.gz`, wird die Antwort transparent entpackt (gzip). |
+| `language` | String | Ja | Sprachcode, der jedem importierten Wort zugewiesen wird (z. B. `de`, `en`, `la`). |
+| `system` | String | Ja | System-ID, der jedem importierten Wort zugewiesen wird (z. B. `wiktionary_de`). |
+| `max_words` | usize | Nein (Standard: 500) | Maximale Anzahl akzeptierter Wörter. Das Streaming stoppt SOFORT, sobald dieses Limit erreicht ist — der Rest der (oft GB-großen) Datei wird nie gelesen oder heruntergeladen. Kann pro Lauf mit `db fetch --limit N` überschrieben werden (für alle ausgewählten Quellen). |
+
+### Unterstützte Backends
+
+| Backend | Format | Beschreibung |
+|---------|--------|-------------|
+| `wiktextract-jsonl` | JSON Lines (eine JSON-Zeile pro Wort) | kaikki.org-Exporte des `wiktextract`-Tools. Jede Zeile wird von `parse_wiktextract_line()` in einen `WordRecord` übersetzt: `word` → Wort, `pos` (`noun`/`adj`/`name`) → `word_class` (`noun`/`adj`/`proper`), erste 2 Glosse → `tags`, `etymology_text` → `etymology` (gekürzt, kleingeschrieben). Andere `pos`-Werte (z. B. `verb`) werden übersprungen, nicht importiert. |
+
+Nur diese Backend-Typen haben eine Implementierung im Code — andere Werte in `backend` schlagen beim Laden der Datei fehl (mit einer Liste der unterstützten Typen in der Fehlermeldung).
+
+### Duplikate
+
+Wie bei `db import` gilt: `id` in der Datenbank ist `language_word`. Kommt derselbe Wortstamm mehrfach in der Quelldatei vor (z. B. mehrere Wiktionary-Einträge zum selben Lemma mit unterschiedlichen Bedeutungen), überschreibt der letzte gelesene Eintrag die vorherigen (`INSERT OR REPLACE`). Das ist der Grund, warum die Anzahl der `list systems`-Zeilen nach einem Fetch kleiner sein kann als die Anzahl der als "importiert" gemeldeten Wörter.
+
+---
+
 ## SQLite-Schema
 
 Erzeugt durch `db::Db::ensure_schema()`. Die `words.db` wird erneut erstellt oder aktualisiert bei jedem Import.

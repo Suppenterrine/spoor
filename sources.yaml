@@ -1,0 +1,25 @@
+# Wortquellen fuer 'name-generator db fetch'.
+#
+# WICHTIG: 'backend' bestimmt den Parser im Code. Es existiert NUR fuer die
+# folgenden Backend-Typen eine Implementierung - andere Werte schlagen beim
+# Laden fehl:
+#   - wiktextract-jsonl   (kaikki.org JSONL-Exporte, eine JSON-Zeile pro Wort)
+sources:
+  - id: kaikki-de
+    backend: wiktextract-jsonl
+    url: https://kaikki.org/dictionary/German/kaikki.org-dictionary-German.jsonl
+    language: de
+    system: wiktionary_de
+    max_words: 500
+  - id: kaikki-en
+    backend: wiktextract-jsonl
+    url: https://kaikki.org/dictionary/English/kaikki.org-dictionary-English.jsonl
+    language: en
+    system: wiktionary_en
+    max_words: 500
+  - id: kaikki-la
+    backend: wiktextract-jsonl
+    url: https://kaikki.org/dictionary/Latin/kaikki.org-dictionary-Latin.jsonl
+    language: la
+    system: wiktionary_la
+    max_words: 500

@@ -177,9 +177,44 @@ name-generator find "Werkzeug für Wald und Baum" --count 3 --explain
 
 ---
 
-### Phase 4: Semantik-Upgrade (optional, später)
+### Phase 4a: Datenimport per API/Download ✅ FERTIG
 
-**Zeitraum**: Optional, nach Phase 3
+**Zeitraum**: Mit diesem Commit
+
+**Ziele**:
+- Neuer Command: `db fetch [--file <PATH>] [--only <ids>] [--limit <N>]`
+- `sources.yaml` beschreibt Online-Wortquellen (aktuell: kaikki.org-Wiktionary-JSONL-Exporte) deklarativ
+- Paralleles Streaming: ein Worker-Thread pro Quelle liest und parst, der Haupt-Thread ist der einzige Schreiber der SQLite-Datenbank (Ein-Schreiber-Prinzip bleibt gewahrt)
+- Frühzeitiger Abbruch pro Quelle, sobald `max_words` erreicht ist — GB-große Dump-Dateien werden nie vollständig heruntergeladen
+- Docker-compose-artige Live-Progress-Anzeige (`indicatif::MultiProgress`): eine selbstaktualisierende Zeile pro Quelle, `✔`/`✖` am Ende
+- Fehlertoleranz: eine fehlschlagende Quelle (Netzwerk, Timeout, ungültige URL) bricht die anderen nicht ab
+
+**Deliverables**:
+- ✅ `src/sources.rs`: `SourceSpec`, `Backend`, `load_sources()` (bereits vor diesem Commit vorhanden)
+- ✅ `src/fetch/mod.rs`: `consume_jsonl()`, `CountingReader`, `fetch_all()`, `FetchProgress`-Trait, `FetchOutcome`
+- ✅ CLI-Subcommand `db fetch` mit `--file`/`--only`/`--limit` in `src/cli.rs`
+- ✅ `CliFetchProgress`: `indicatif`-basierte UI, UI-frei vom Engine-Code (testbar ohne Terminal)
+- ✅ Tests: `consume_jsonl` mit In-Memory-Reader (frühzeitiger Abbruch bewiesen), `fetch_all` mit absichtlich fehlschlagender Quelle (kein Abbruch der anderen), `#[ignore]`-Netzwerktest gegen die echte kaikki.org-Latein-Quelle
+- ✅ Dokumentation: `cli.md` (db fetch), `data-model.md` (sources.yaml-Format), `architecture.md` (fetch-Modul, Streaming-Pipeline, Ein-Schreiber-Prinzip)
+
+**Status**: ✅ FERTIG
+- `cargo build` — Zero Warnings
+- `cargo test` — alle grün (inkl. neuer fetch-Tests)
+- `cargo test -- --ignored` — Netzwerk-Smoke-Test gegen kaikki.org grün
+- `db fetch --only kaikki-la --limit 50` läuft in < 1 Sekunde, importiert 50 Wörter
+- `db fetch --limit 100` (alle 3 Quellen parallel) funktioniert; `find`/`gen` bleiben danach deterministisch und funktionsfähig
+- Release-Binary bleibt klein (~5–6 MB, deutlich unter 15 MB) trotz `ureq`/`indicatif`/`flate2`
+
+**Abhängigkeiten**: Phase 0, Phase 2 (Etymologie-Spalten, von `parse_wiktextract_line` befüllt)
+
+**Aufgeschoben (Phase 4b)**:
+- Semantische Suche via Embeddings bleibt optional und offen (s. u.)
+
+---
+
+### Phase 4b: Semantik-Upgrade (Embeddings, optional, später)
+
+**Zeitraum**: Optional, nach Phase 3 / Phase 4a
 
 **Ziele**:
 - Lokale Embeddings (z. B. via ONNX, Sentence-Transformers-Modell)

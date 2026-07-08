@@ -1,13 +1,17 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use clap::{Parser, Subcommand};
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use serde::Serialize;
 
 use crate::config::Config;
 use crate::db::Db;
+use crate::fetch::{fetch_all, FetchProgress, FetchReport};
 use crate::generator::{Generator, SeededRng, WordLists};
 use crate::lookup;
+use crate::sources::{load_sources, SourceSpec};
 
 #[derive(Parser, Debug)]
 #[command(name = "name-generator")]
@@ -110,6 +114,21 @@ enum DbCommand {
     },
     /// Database statistics
     Info,
+    /// Download and import word sources over the network (see sources.yaml)
+    #[command(after_help = "EXAMPLES:\n  Fetch all configured sources:\n    name-generator db fetch\n\n  Fetch only one source, capped at 50 words:\n    name-generator db fetch --only kaikki-la --limit 50")]
+    Fetch {
+        /// Path to the sources.yaml file
+        #[arg(long, default_value = "sources.yaml")]
+        file: String,
+
+        /// Comma-separated list of source ids to fetch (default: all)
+        #[arg(long)]
+        only: Option<String>,
+
+        /// Override max_words for every selected source
+        #[arg(long)]
+        limit: Option<usize>,
+    },
 }
 
 #[derive(Serialize)]
@@ -198,7 +217,7 @@ impl Cli {
                 let (_cfg, db) = open_context(&self.config)?;
 
                 // Get records filtered by systems in SQL
-                let systems_filter = systems.map(|s| parse_systems(&s));
+                let systems_filter = systems.map(|s| split_comma_list(&s));
                 let records = db.all_records(systems_filter.as_deref())?;
 
                 // Rank records against the query
@@ -300,10 +319,116 @@ impl Cli {
                             println!("  {}: {}", sys, count);
                         }
                     }
+                    DbCommand::Fetch { file, only, limit } => {
+                        let (_cfg, mut db) = open_context(&self.config)?;
+                        let mut specs: Vec<SourceSpec> = load_sources(&file)?.sources;
+
+                        if let Some(only) = only {
+                            let wanted: HashSet<String> = split_comma_list(&only).into_iter().collect();
+                            let known: HashSet<&str> = specs.iter().map(|s| s.id.as_str()).collect();
+                            for id in &wanted {
+                                if !known.contains(id.as_str()) {
+                                    eprintln!("Warning: unknown source id '{}' (ignored)", id);
+                                }
+                            }
+                            specs.retain(|s| wanted.contains(&s.id));
+                        }
+
+                        if let Some(limit) = limit {
+                            for spec in specs.iter_mut() {
+                                spec.max_words = limit;
+                            }
+                        }
+
+                        if specs.is_empty() {
+                            println!("No sources selected.");
+                            return Ok(());
+                        }
+
+                        println!("[+] Fetching {} sources", specs.len());
+
+                        let multi = MultiProgress::new();
+                        let progress = CliFetchProgress::new(&multi, &specs);
+                        let outcome = fetch_all(&mut db, &specs, &progress)?;
+
+                        println!(
+                            "Imported {} words from {} sources.",
+                            outcome.total_inserted,
+                            outcome.reports.len()
+                        );
+                    }
                 }
             }
         }
         Ok(())
+    }
+}
+
+/// docker-compose-style progress UI for `db fetch`: one self-updating
+/// spinner line per source inside a shared `MultiProgress`. UI-only; never
+/// touches the `Db` (workers call this directly from their own threads).
+struct CliFetchProgress {
+    bars: HashMap<String, ProgressBar>,
+}
+
+impl CliFetchProgress {
+    fn new(multi: &MultiProgress, specs: &[SourceSpec]) -> Self {
+        let mut bars = HashMap::new();
+        for spec in specs {
+            let bar = multi.add(ProgressBar::new_spinner());
+            bar.set_style(Self::spinner_style());
+            bar.enable_steady_tick(Duration::from_millis(120));
+            bar.set_prefix(spec.id.clone());
+            bar.set_message("warte auf Antwort...");
+            bars.insert(spec.id.clone(), bar);
+        }
+        Self { bars }
+    }
+
+    fn spinner_style() -> ProgressStyle {
+        ProgressStyle::with_template("{spinner} {prefix:<14} {msg}")
+            .expect("valid progress template")
+            .tick_chars("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏⠿⠿")
+    }
+
+    fn finished_style(symbol: &str) -> ProgressStyle {
+        ProgressStyle::with_template(&format!("{symbol} {{prefix:<14}} {{msg}}"))
+            .expect("valid progress template")
+    }
+
+    fn format_mb(bytes: u64) -> String {
+        format!("{:.1} MB", bytes as f64 / 1_000_000.0)
+    }
+}
+
+impl FetchProgress for CliFetchProgress {
+    fn on_update(&self, id: &str, bytes: u64, accepted: usize, skipped: usize) {
+        if let Some(bar) = self.bars.get(id) {
+            bar.set_message(format!(
+                "{} · {} Woerter · {} uebersprungen",
+                Self::format_mb(bytes),
+                accepted,
+                skipped
+            ));
+        }
+    }
+
+    fn on_done(&self, id: &str, report: &FetchReport) {
+        if let Some(bar) = self.bars.get(id) {
+            bar.set_style(Self::finished_style("\u{2714}")); // ✔
+            bar.finish_with_message(format!(
+                "{} Woerter importiert ({} gelesen)",
+                report.accepted,
+                Self::format_mb(report.bytes_read)
+            ));
+        }
+    }
+
+    fn on_error(&self, id: &str, msg: &str) {
+        if let Some(bar) = self.bars.get(id) {
+            bar.set_style(Self::finished_style("\u{2716}")); // ✖
+            bar.finish_with_message(msg.to_string());
+        }
     }
 }
 
@@ -313,8 +438,11 @@ fn open_context(config_path: &str) -> anyhow::Result<(Config, Db)> {
     Ok((cfg, db))
 }
 
-fn parse_systems(systems_str: &str) -> Vec<String> {
-    systems_str
+/// Split a comma-separated CLI value into trimmed parts. Shared by
+/// `--systems` (gen/find) and `--only` (db fetch) instead of duplicating the
+/// splitting logic per option.
+fn split_comma_list(value: &str) -> Vec<String> {
+    value
         .split(',')
         .map(|s| s.trim().to_string())
         .collect()
@@ -326,7 +454,7 @@ fn load_wordlists(db: &Db, systems: Option<&str>) -> anyhow::Result<WordLists> {
     let mut suffix_adjs = Vec::new();
     let mut suffix_names = Vec::new();
 
-    let systems_filter = systems.map(parse_systems);
+    let systems_filter = systems.map(split_comma_list);
 
     let word_class_rows = db.words_by_class(systems_filter.as_deref())?;
 

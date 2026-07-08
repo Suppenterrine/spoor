@@ -47,24 +47,39 @@ pub fn tokenize(query: &str) -> Vec<String> {
     tokens.into_iter().filter(|t| seen.insert(t.clone())).collect()
 }
 
-/// Exact or bidirectional-substring match of a token against one text.
-/// Substrings only count when both sides are at least 3 chars, so short
-/// fragments like "of" cannot produce phantom hits.
+/// Exact or bidirectional-PREFIX match of a token against one text.
+/// Prefix instead of substring keeps mid-word noise out ("cli" must not hit
+/// "acclimatation"); both sides need at least 3 chars for a partial hit.
 fn score_text(text: &str, token: &str, exact: f64, partial: f64) -> f64 {
     if text == token {
         exact
-    } else if token.len() >= 3 && text.len() >= 3 && (text.contains(token) || token.contains(text)) {
+    } else if token.len() >= 3 && text.len() >= 3 && (text.starts_with(token) || token.starts_with(text)) {
         partial
     } else {
         0.0
     }
 }
 
-/// Best score of a token against a list of texts (e.g. tags).
+/// Minimum token length for free substring matching in prose fields
+/// (tags/glosses, etymology) — short tokens produce too many phantom hits.
+const MIN_SUBSTRING_TOKEN: usize = 4;
+
+/// Best score of a token against a list of texts (e.g. tags/glosses).
+/// Exact and prefix hits via score_text; additionally a substring hit inside
+/// prose items (glosses are whole phrases) for tokens of useful length.
 fn score_list(items: &[String], token: &str, exact: f64, partial: f64) -> f64 {
     items
         .iter()
-        .map(|item| score_text(item, token, exact, partial))
+        .map(|item| {
+            let s = score_text(item, token, exact, partial);
+            if s > 0.0 {
+                s
+            } else if token.len() >= MIN_SUBSTRING_TOKEN && item.contains(token) {
+                partial
+            } else {
+                0.0
+            }
+        })
         .fold(0.0, f64::max)
 }
 
@@ -97,7 +112,7 @@ fn score_record(record: &WordRecord, tokens: &[String]) -> (f64, Vec<String>) {
             (
                 "etymology",
                 etymology.as_deref().map_or(0.0, |e| {
-                    if token.len() >= 3 && e.contains(token.as_str()) {
+                    if token.len() >= MIN_SUBSTRING_TOKEN && e.contains(token.as_str()) {
                         1.0
                     } else {
                         0.0

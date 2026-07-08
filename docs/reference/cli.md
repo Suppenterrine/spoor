@@ -19,6 +19,7 @@ Die CLI folgt einer hierarchischen Subcommand-Struktur:
 - **db** — Datenbankoperationen
   - **import** — CSV-Datei in Datenbank importieren
   - **info** — Datenbankstatistiken anzeigen
+  - **fetch** — Wortquellen aus `sources.yaml` per HTTP herunterladen und importieren
 - **help** — Hilfe für ein Kommando anzeigen
 
 ### Globale Optionen
@@ -388,6 +389,65 @@ Imported 77 words.
 
 Die Datenbank wird erstellt oder aktualisiert. Duplikate (nach `id = language_word`) werden durch die neue Version ersetzt.
 
+### db fetch — Wortquellen herunterladen
+
+Lädt Wörter direkt von den in `sources.yaml` konfigurierten Online-Quellen (aktuell: kaikki.org-JSONL-Exporte von Wiktionary) und importiert sie in die Datenbank. Anders als `db import` wird hier gestreamt: die Quelldateien sind GB-groß, aber es werden nur die ersten `max_words` passenden Zeilen gelesen — der Rest der Datei wird nie heruntergeladen.
+
+#### Syntax
+
+```
+name-generator db fetch [OPTIONS]
+```
+
+#### Optionen
+
+| Option | Wert | Beschreibung |
+|--------|------|-------------|
+| `--file <FILE>` | Path | Pfad zur Quellen-Konfiguration. Standardwert: `sources.yaml` |
+| `--only <IDS>` | String | Komma-getrennte Liste von Source-IDs (z. B. `kaikki-de,kaikki-la`). Ohne Angabe werden alle Quellen aus der Datei abgerufen. |
+| `--limit <N>` | usize | Überschreibt `max_words` für alle ausgewählten Quellen (z. B. für schnelle Tests). |
+
+#### Ablauf
+
+- Jede Quelle wird in einem eigenen Thread parallel heruntergeladen und geparst (Streaming, keine Zwischenspeicherung der ganzen Datei).
+- Ein einziger Thread (der Haupt-Thread) schreibt in die SQLite-Datenbank — pro eintreffendem Batch (100 Wörter) eine Transaktion. So bleibt die "eine Verbindung, ein Schreiber"-Regel der Datenbank gewahrt, auch bei parallelen Downloads.
+- Scheitert eine Quelle (Netzwerkfehler, Timeout, ungültige URL), werden die anderen Quellen davon nicht beeinträchtigt. Die fehlgeschlagene Quelle wird mit `✖` und Fehlermeldung markiert; der Befehl selbst schlägt nicht fehl.
+
+#### Beispiel: Eine Quelle mit Limit (schneller Testlauf)
+
+```bash
+name-generator db fetch --only kaikki-la --limit 50
+```
+
+Ausgabe (Live-Update, docker-compose-artig — eine Zeile pro Quelle):
+```
+[+] Fetching 1 sources
+⠿ kaikki-la     2.1 MB · 340 Woerter · 120 uebersprungen
+✔ kaikki-la     50 Woerter importiert (2.4 MB gelesen)
+Imported 50 words from 1 sources.
+```
+
+#### Beispiel: Alle konfigurierten Quellen
+
+```bash
+name-generator db fetch --limit 100
+```
+
+Ausgabe:
+```
+[+] Fetching 3 sources
+⠿ kaikki-de     1.8 MB · 210 Woerter · 55 uebersprungen
+⠿ kaikki-en     2.4 MB · 300 Woerter · 90 uebersprungen
+✔ kaikki-la     100 Woerter importiert (2.4 MB gelesen)
+✔ kaikki-de     100 Woerter importiert (3.1 MB gelesen)
+✔ kaikki-en     100 Woerter importiert (3.9 MB gelesen)
+Imported 300 words from 3 sources.
+```
+
+Jede Quellenzeile aktualisiert sich live (Spinner, gelesene Datenmenge, akzeptierte/übersprungene Wörter) und endet mit `✔` (Erfolg) oder `✖` (Fehler mit Meldung). Wenn stdout kein Terminal ist (z. B. Umleitung in eine Datei), unterdrückt `indicatif` die Live-Anzeige automatisch.
+
+Details zum Quellenformat siehe `docs/reference/data-model.md` (Abschnitt "sources.yaml").
+
 ### db info — Datenbankstatistiken
 
 Zeigt grundlegende Statistiken über die importierten Daten.
@@ -490,4 +550,5 @@ Mit `--config <DATEI>` kann eine alternative Konfiguration verwendet werden.
 | `Failed to read config file` | `config.toml` nicht gefunden | Datei erstellen oder `--config` angeben |
 | `Unknown placeholder: {foo}` | Ungültiger Platzhalter im Template | Nur `{prefix}`, `{word}`, `{suffix_adj}`, `{suffix}` verwenden |
 | `only N unique names were possible` | Zu wenig Wörter für --count | `--count` reduzieren oder mehr Wörter importieren |
+| `✖` bei `db fetch` mit Fehlermeldung | Netzwerkfehler, Timeout oder ungültige URL für eine Quelle | Internetverbindung prüfen, URL in `sources.yaml` korrigieren; andere Quellen sind davon nicht betroffen |
 

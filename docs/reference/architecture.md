@@ -11,6 +11,8 @@ src/
 ├── cli.rs               # Kommandozeileninterface (clap)
 ├── config.rs            # Konfiguration (TOML-Parsing)
 ├── db/mod.rs            # Datenbankoperationen (SQLite)
+├── sources.rs           # sources.yaml laden + validieren (SourceSpec, Backend)
+├── fetch/mod.rs         # Streaming-Download-Engine + wiktextract-JSONL-Parser
 ├── generator/
 │   ├── mod.rs           # Öffentliche Exports
 │   ├── rng.rs           # SeededRng (ChaCha8-Wrapper)
@@ -424,6 +426,80 @@ enum DbCommand {
 1. `open_context()`
 2. `db.stats()` → DbStats
 3. Statistiken anzeigen
+
+---
+
+### 7. **sources.rs + fetch/mod.rs** — Datenimport per Download (Phase 4a)
+
+Lädt Wortquellen direkt von Online-Wörterbüchern (aktuell: kaikki.org-Wiktionary-Exporte) und importiert sie in die Datenbank, ohne die Quelldatei jemals vollständig herunterzuladen oder zu puffern.
+
+**sources.rs**:
+```rust
+pub enum Backend { WiktextractJsonl }  // aktuell einziger unterstützter Typ
+
+pub struct SourceSpec {
+    pub id: String,
+    pub backend: Backend,
+    pub url: String,
+    pub language: String,
+    pub system: String,
+    pub max_words: usize,   // Standard: 500
+}
+
+pub struct SourcesConfig { pub sources: Vec<SourceSpec> }
+
+pub fn load_sources(path) -> anyhow::Result<SourcesConfig>
+```
+Liest und validiert `sources.yaml`; unbekannte `backend`-Werte brechen mit einer Fehlermeldung ab, die die unterstützten Typen auflistet.
+
+**fetch/mod.rs — Streaming-Pipeline**:
+```rust
+pub struct FetchReport { pub id, pub accepted, pub skipped, pub bytes_read, pub error: Option<String> }
+pub struct FetchOutcome { pub reports: Vec<FetchReport>, pub total_inserted: usize }
+
+pub trait FetchProgress: Sync {
+    fn on_update(&self, id: &str, bytes: u64, accepted: usize, skipped: usize);
+    fn on_done(&self, id: &str, report: &FetchReport);
+    fn on_error(&self, id: &str, msg: &str);
+}
+
+pub fn parse_wiktextract_line(line: &str, spec: &SourceSpec) -> anyhow::Result<Option<WordRecord>>
+pub fn consume_jsonl<R: Read>(reader, spec, bytes_read_fn, on_progress, on_batch) -> FetchReport
+pub fn fetch_all(db: &mut Db, specs: &[SourceSpec], progress: &dyn FetchProgress) -> anyhow::Result<FetchOutcome>
+```
+
+**Datenfluss pro Quelle**:
+```
+SourceSpec.url
+    ↓ ureq::get(url).timeout(60s).call()  [HTTP, kein Zwischenspeichern des Bodys]
+Response::into_reader()  [impl Read]
+    ↓ CountingReader (AtomicU64, für Fortschrittsanzeige "X MB gelesen")
+    ↓ falls url endet auf ".gz": flate2::GzDecoder
+BufReader::lines()
+    ↓ pro Zeile: parse_wiktextract_line()
+    - Ok(Some(rec))  → akzeptiert, in Batch (100 Stück) sammeln
+    - Ok(None)       → übersprungen (falscher word_class, Multiword, ...)
+    - Err(_)         → übersprungen (kaputte JSON-Zeile bricht den Fetch NICHT ab)
+    ↓ sobald accepted == spec.max_words: SOFORT abbrechen (Rest der Datei wird nie gelesen)
+    ↓ Batch (voll oder letzter Rest) → mpsc-Channel
+Haupt-Thread: db.insert_words(batch) [eine Transaktion pro Batch]
+    ↓
+FetchReport { accepted, skipped, bytes_read, error: None }
+```
+
+**Nebenläufigkeit — Ein-Schreiber-Prinzip**:
+- Pro Quelle läuft EIN Worker-Thread (`std::thread::scope`), der ausschließlich liest, parst und über einen `mpsc`-Channel sendet.
+- Der Haupt-Thread ist der EINZIGE Thread, der `Db` anfasst: er nimmt Batches aus dem Channel entgegen und fügt sie in eigenen Transaktionen ein (`Db::insert_words`, kein separater SQL-Code — dieselbe `INSERT OR REPLACE`-Logik wie bei `db import`).
+- `FetchProgress`-Methoden (`on_update`, `on_error`) werden DIREKT von den Worker-Threads aufgerufen (der Trait verlangt `Sync`), weil sie nur die UI aktualisieren und nie die Datenbank berühren. `on_done` wird vom Haupt-Thread aufgerufen, nachdem der letzte Batch der Quelle eingefügt wurde.
+- Schlägt eine Quelle fehl (Netzwerkfehler, ungültige URL, Timeout), wird das über `on_error` gemeldet und im `FetchReport.error` festgehalten — die anderen Quellen laufen unbeeinflusst weiter. `fetch_all` selbst gibt `Ok` zurück, auch wenn einzelne Quellen fehlschlugen.
+
+**Streaming statt Puffern**:
+- Es wird nie der komplette HTTP-Body im Speicher gehalten — `BufReader::lines()` liest zeilenweise direkt aus dem (ggf. entpackten) Netzwerk-Stream.
+- Frühzeitiger Abbruch (`accepted == max_words`) ist der Kernpunkt: kaikki.org-Dumps sind GB-groß, aber es werden oft nur die ersten paar hundert Zeilen wirklich benötigt.
+
+**cli.rs — `db fetch`**:
+- `--file <PATH>` (Standard: `sources.yaml`), `--only <ids>` (Komma-getrennt, nutzt dieselbe Split-Hilfsfunktion wie `--systems`), `--limit <N>` (überschreibt `max_words` für alle ausgewählten Quellen).
+- UI: `indicatif::MultiProgress` mit einer Spinner-`ProgressBar` pro Quelle (docker-compose-artig). `CliFetchProgress` implementiert `FetchProgress` und aktualisiert/beendet die jeweilige Zeile (`✔`/`✖`).
 
 ---
 

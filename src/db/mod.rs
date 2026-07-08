@@ -16,7 +16,7 @@ pub struct ImportReport {
     pub unknown_class: usize,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct WordRecord {
     pub id: String,
     pub word: String,
