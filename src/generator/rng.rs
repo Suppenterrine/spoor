@@ -12,10 +12,6 @@ impl SeededRng {
         Self { inner }
     }
 
-    pub fn with_rng(rng: ChaCha8Rng) -> Self {
-        Self { inner: rng }
-    }
-
     pub fn gen_bool(&mut self, probability: f64) -> bool {
         self.inner.gen_bool(probability.clamp(0.0, 1.0))
     }

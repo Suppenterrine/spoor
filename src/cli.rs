@@ -2,8 +2,6 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use clap::{Parser, Subcommand};
-use rand::{Rng, SeedableRng};
-use rand_chacha::ChaCha8Rng;
 use serde::Serialize;
 
 use crate::config::Config;
@@ -50,9 +48,17 @@ enum Commands {
     Import {
         /// CSV file path
         path: PathBuf,
+
+        /// Alternate config path
+        #[arg(long, default_value = "config.toml")]
+        config: String,
     },
     /// Database statistics
-    Info {},
+    Info {
+        /// Alternate config path
+        #[arg(long, default_value = "config.toml")]
+        config: String,
+    },
 }
 
 #[derive(Serialize)]
@@ -72,24 +78,16 @@ impl Cli {
                 format,
                 config,
             } => {
-                let cfg_path = Path::new(&config);
-                let cfg = Config::read(cfg_path)?;
-
-                let db_path = PathBuf::from(&cfg.db.path);
-                let db = Db::open(db_path)?;
+                let (cfg, db) = open_context(&config)?;
                 let words = load_wordlists(&db, systems.as_deref())?;
 
                 let generator = Generator::new(&cfg, words);
                 let mut names = Vec::with_capacity(count);
                 let mut used = HashSet::new();
 
-                let mut rng = match seed {
-                    Some(s) => ChaCha8Rng::seed_from_u64(s),
-                    None => ChaCha8Rng::from_entropy(),
-                };
-                let used_seed = rng.gen();
-
-                let mut srng = SeededRng::with_rng(rng);
+                let seed_was_given = seed.is_some();
+                let seed = seed.unwrap_or_else(rand::random::<u64>);
+                let mut srng = SeededRng::new(seed);
 
                 for _ in 0..count {
                     let name = generator.generate_one(&mut srng, &mut used);
@@ -98,31 +96,27 @@ impl Cli {
 
                 if format == "json" {
                     let out = GenOutput {
-                        seed: used_seed,
+                        seed,
                         names,
                     };
                     println!("{}", serde_json::to_string_pretty(&out)?);
                 } else {
-                    if seed.is_none() {
-                        println!("seed={}", used_seed);
+                    if !seed_was_given {
+                        println!("seed={}", seed);
                     }
                     for name in names {
                         println!("{}", name);
                     }
                 }
             }
-            Commands::Import { path } => {
-                let cfg = Config::read("config.toml")?;
-                let db_path = PathBuf::from(&cfg.db.path);
-                let mut db = Db::open(db_path)?;
+            Commands::Import { path, config } => {
+                let (_cfg, mut db) = open_context(&config)?;
                 let records = csv_import::read_words(&path)?;
                 db.insert_words(&records)?;
                 println!("Imported {} words.", records.len());
             }
-            Commands::Info {} => {
-                let cfg = Config::read("config.toml")?;
-                let db_path = PathBuf::from(&cfg.db.path);
-                let db = Db::open(db_path)?;
+            Commands::Info { config } => {
+                let (_cfg, db) = open_context(&config)?;
                 let stats = db.stats()?;
                 let total = stats.get("total").copied().unwrap_or(0);
                 println!("Total words: {total}");
@@ -136,6 +130,12 @@ impl Cli {
         }
         Ok(())
     }
+}
+
+fn open_context(config_path: &str) -> anyhow::Result<(Config, Db)> {
+    let cfg = Config::read(Path::new(config_path))?;
+    let db = Db::open(PathBuf::from(&cfg.db.path))?;
+    Ok((cfg, db))
 }
 
 fn load_wordlists(db: &Db, systems: Option<&str>) -> anyhow::Result<WordLists> {
