@@ -1,200 +1,82 @@
 # Name Generator
-(💡 *Vorschläge für einfallsreichere Namen sind erwünscht.*) <br>
 
-> Dieses Programm generiert zufällige Namen (oder Sequenzen) aus Wörtern aus angegebenen CSV-Dateien und einer Konfigurationsdatei.<br>
+Ein CLI-Werkzeug, das aus der Bedeutung eines Anwendungsfalls den passenden Namen findet — als einzelnes Wort, mit einer Spur, die bis zu seiner Herkunft zurückverfolgbar ist. Dazu ein seed-reproduzierbarer Zufallsgenerator für thematische Namen.
 
-![example](media/example.gif#gh-light-mode-only)
-![example darkmode](media/example_darkmode.gif#gh-dark-mode-only)
+Vision und Leitplanken: [docs/NORTH_STAR.md](docs/NORTH_STAR.md)
 
+```console
+$ name-generator find "sky thunder king" --explain
+zeus — griech. Zeus, idg. *dyeus 'Himmel, Tag' (grc) · System: myth_greek · Treffer: sky (tag), thunder (tag), king (tag)
 
-<details closed>
-<summary>Installation</summary>
-
-1. Sicherstellen das [Git](https://git-scm.com/downloads) (zum herunterladen des Projektes) und [Node.js](https://nodejs.org/en/download) (zur Ausführung des Projektes) installiert sind.
-   -  Um die erfolgreiche Installation der Programm zu überprüfen kann folgendes in die Konsole eingeben werden  (*Versionszahlen können variieren*):
-      -  **Git**-Installation überprüfen:
-            ```bash
-            git --version
-
-            # erwartete Ausgabe:
-            # git version 2.37.2.windows.2
-            ```
-      -  **Node.Js**-Installation überprüfen:
-            ```bash
-            node --version
-
-            # erwartete Ausgabe:
-            # v18.15.0
-            ```
-2. Mit Powershell oder CMD in den Pfad navigieren in dem diese App installiert werden soll, z.B: `C:\Users\<username>\Documents`
-3. In der geöffneten Konsole (Powershell oder CMD) diesen Befehl einfügen:
-    ```bash
-    git clone https://github.com/Suppenterrine/Name-Generator.git
-    ```
-4. In das neu angelegte Verzeichnis wechseln:
-    ```bash
-    cd Name-Generator
-    ```
-   - Wenn der Pfad vom aktuellen Verzeichnis eben so aussah: `C:\Users\<username>\Documents` sollte er danach so aussehen: `C:\Users\<username>\Documents\Name-Generator` 
-5. Um die App auszuführen folgendes eingeben:
-    ```bash
-    node app.js --help
-    ```
-
-</details>
-<br>
-
-## Projektinhalt
-
-| Dateiname  | Beschreibung |
-| ----- | ---- |
-| `app.js` | Hauptprogrammdatei |
-| `config.json` | Konfigurationsdatei,  Wahrscheinlichkeiten und Trennzeichen |
-| `csvData/` | Ordner in welchem CSV-Dateien mit den User definierten Wörtern liegen |
-
-## Anpassung u. Hinweis
-
-Die Ausgabe des Programms basiert auf den Daten in den CSV-Dateien und der Konfiguration.
-<br>
-<details closed>
-<summary>Sequenzaufbau</summary>
-Präfix Artikel -  0.2 <br>
-Präfix - 0.8 <br>
-Seperator - 1 <br>
-Hauptwort - 1 <br>
-Seperator - 1 <br>
-Füllwort - 1 <br>
-Suffix Artikel - 0.3 <br>
-Seperator - 1 <br>
-Suffix Adjektiv - 0.5 <br>
-Seperator -  1 <br>
-Suffix - 0.5 <br>
-</details>
-<br>
-
-### **CSV Spalten** <br>
-Die möglichen Spalten sind zu diesem Zeitpunkt auf diese Namen festgelegt.
-
-| CSV Spaltenname | Beschreibung | Standard Wahrscheinlichkeit (0 - 1) |
-| ----- | ---- | ---- |
-|`prefix` | Wahrscheinlichkeit, ein Präfix zum Namen hinzuzufügen | `0.8` |
-|`word` | Wort / Hauptwort | `1` |
-|`suffix_adj` | Wahrscheinlichkeit, ein Adjektiv zum Suffix hinzuzufügen | `0.5` |
-|`suffix` | Wahrscheinlichkeit, einen Suffix-Namen hinzuzufügen | `0.5` |
-
-<br>
-
-### **Weitere Wahrscheinlichkeiten** <br>
-|Name | Beschreibung | Standard Wahrscheinlichkeit (0 - 1) |
-| ----- | ---- | ---- |
-| `prefix_article_probality` | Wahrscheinlichkeit, "The" vor dem Präfix hinzuzufügen | `0.2` |
-| `suffix_article_probability` | Wahrscheinlichkeit, "the" nach "of" hinzuzufügen | `0.3` |
-
-<br>
-
-### **Weitere Konfig-Einstellungen** <br>
-|Name | Beschreibung | Standard |
-| ----- | ---- | ---- |
-| `seperator` | Wahl des Trennzeichens zwischen den Wörtern | `Leerzeichen` |
-| `fillword` | Wahl das Füllwort nach dem Hauptwort zu ändern | `of` |
-| `selectedFiles` | **App-Intern**: Liste mit Dateinamen von welchen Daten verwendet werden | `[ "DateiEins.csv", "DateiZwei.csv" ]` |
-| `last_used_name` | **App-Intern**: Enthält zuletzt generierte Sequenz. Stellt sicher das die nächste Sequenz eine neue ist und nicht die gleiche (Kein Nutzen für User) | `"The Hearty Unease of Agitated Destruction"` |
-
----
-
-## Rust-Implementierung
-
-Zusätzlich zur Node.js-Version existiert eine Rust-Implementierung als Phase 0-Basis
-für die weitere Entwicklung. Sie nutzt [CLAP](https://docs.rs/clap/latest/clap/),
-[serde](https://docs.rs/serde/latest/serde/), [rusqlite](https://docs.rs/rusqlite/latest/rusqlite/),
-[csv](https://docs.rs/csv/latest/csv/), [rand_chacha](https://docs.rs/rand_chacha/latest/rand_chacha/) und
-[toml](https://docs.rs/toml/latest/toml/). Das Release-Binary liegt nach Build unter
-`target/release/name-generator.exe`.
-
-### Voraussetzungen und Setup
-
-- Toolchain installieren:
-    ```bash
-    rustc --version
-    cargo --version
-    ```
-- Build und Tests:
-    ```bash
-    cargo build --release
-    cargo test
-    ```
-
-### Konfiguration
-
-Die Rust-Variante nutzt `config.toml` im Projektroot. Beispiel:
-
-```toml
-[generator]
-prefix_article_probability = 0.2
-prefix_probability = 0.8
-suffix_article_probability = 0.3
-suffix_adjectiv_probability = 0.5
-suffix_name_probability = 0.5
-separator = " "
-fillword = "of"
-
-[db]
-path = "data/words.db"
+$ name-generator gen --seed 42 --count 3
+Wandering atlas of Essenz
+Heilig silvan
+The Iron apex of the verborgen Dawn
 ```
 
-Word-Daten liegen in `data/words.csv`; der Import via `import data/words.csv` erzeugt `data/words.db`,
-welche in `.gitignore` eingetragen und nicht versioniert wird.
+## Installation
 
-### Kommandozeile
-
-Die Rust-CLI folgt einer hierarchischen Subcommand-Struktur. Vollständige Referenz: siehe `docs/reference/cli.md`.
-
-Unter Windows/MSYS2-Shell:
+Voraussetzung: [Rust-Toolchain](https://rustup.rs/) (cargo).
 
 ```bash
-# Datenbankoperationen
-target/release/name-generator.exe db import data/words.csv
-target/release/name-generator.exe db info
-
-# Datenbank erkunden
-target/release/name-generator.exe list systems
-target/release/name-generator.exe list languages
-target/release/name-generator.exe list classes
-target/release/name-generator.exe list words --system nature --language en
-
-# Namen generieren (Seed wird automatisch erzeugt und gedruckt, wenn nicht angegeben)
-target/release/name-generator.exe gen
-target/release/name-generator.exe gen --seed 42 --count 3
-target/release/name-generator.exe gen --systems nature --count 5
-
-# Mit benutzerdefinierten Template (Platzhalter: {prefix}, {word}, {suffix_adj}, {suffix})
-target/release/name-generator.exe gen --template "The {word} of {suffix}"
-
-# Verschiedene Ausgabeformate
-target/release/name-generator.exe gen --seed 42 --format json
+git clone https://github.com/Suppenterrine/Name-Generator.git
+cd Name-Generator
+cargo build --release
 ```
 
-In PowerShell/CMD kann alternativ das folgende Pattern verwendet werden:
+Das Binary liegt danach unter `target/release/name-generator` (Windows: `name-generator.exe`, ~3 MB, keine Laufzeitabhängigkeiten).
 
-```powershell
-.\target\release\name-generator.exe db import data/words.csv
-.\target\release\name-generator.exe gen --seed 42 --count 3
-.\target\release\name-generator.exe list systems
+## Schnellstart
+
+```bash
+# 1. Wortdatenbank aus der mitgelieferten CSV aufbauen (erzeugt data/words.db)
+name-generator db import data/words.csv
+
+# 2. Einen Namen für einen Anwendungsfall finden (Reverse-Lookup)
+name-generator find "forest tree" --explain
+
+# 3. Zufällige Namen generieren — reproduzierbar über den Seed
+name-generator gen --seed 42 --count 5
 ```
 
-### Windows-Hinweis
+## Kommandos
 
-Pfadangaben wie `data/words.db` funktionieren weiterhin; Cargo/Rust-Stdlib akzeptieren
-sowohl `/` als auch `\`. Wenn erwünscht, können Pfade trotzdem mit Backslashes
-notiert werden. Der Import-Befehl schreibt in `data/words.db`, der Build schreibt
-nach `target/`, das wegen `/target` in `.gitignore` nicht versioniert wird.
+| Kommando | Zweck |
+| --- | --- |
+| `gen` | Namen generieren (`--seed`, `--count`, `--systems`, `--template`, `--format`) |
+| `find <beschreibung>` | Reverse-Lookup: passendes Wort zum Anwendungsfall (`--count`, `--systems`, `--explain`, `--format`) |
+| `list systems\|languages\|classes\|words` | Datenbankinhalt erkunden |
+| `db import <csv>` | Wortlisten importieren (streamend, dedupliziert) |
+| `db info` | Statistik nach Sprache und System |
+| `help [kommando]` | Hilfe, auch ohne Dashes |
 
-### Referenzdokumentation
+Zwei Eigenschaften gelten überall:
 
-Für vollständige Informationen siehe:
+- **Reproduzierbarkeit**: Ohne `--seed` wird ein Seed erzeugt und als `seed=<n>` ausgegeben; derselbe Seed liefert exakt denselben Lauf.
+- **Herkunft sichtbar**: Jeder `find`-Treffer nennt mit `--explain` seine Etymologie und die Felder, über die er gefunden wurde.
 
-- **`docs/reference/cli.md`** — Vollständige Kommandoreferenz mit Beispielen
-- **`docs/reference/architecture.md`** — Übersicht der Modulstruktur und Datenflüsse
-- **`docs/reference/data-model.md`** — CSV-Format und SQLite-Schema
-- **`docs/reference/roadmap.md`** — Projekt-Phasen und Status
-- **`docs/NORTH_STAR.md`** — Projekt-Vision und Leitgedanke
+Vollständige Referenz: [docs/reference/cli.md](docs/reference/cli.md)
+
+## Konfiguration
+
+`config.toml` steuert Wahrscheinlichkeiten und Aufbau der Generierung (Prefix/Suffix/Artikel, Separator, Fillword) sowie den Datenbankpfad. Abweichender Pfad: globales Flag `--config <pfad>`.
+
+## Eigene Wortdaten
+
+`data/words.csv` ist der mitgelieferte Startdatensatz (77 kuratierte Wörter, EN/DE/LA, mit Etymologien). Format und Wortklassen: [docs/reference/data-model.md](docs/reference/data-model.md). Die Datenbank `data/words.db` ist generiert und nicht versioniert — nach dem Klonen einmal `db import` ausführen.
+
+## Dokumentation
+
+- [docs/reference/cli.md](docs/reference/cli.md) — Kommandoreferenz
+- [docs/reference/architecture.md](docs/reference/architecture.md) — Module, Datenfluss, Designprinzipien
+- [docs/reference/data-model.md](docs/reference/data-model.md) — CSV-Format und Datenbankschema
+- [docs/reference/roadmap.md](docs/reference/roadmap.md) — Phasenplan und Status (Reverse-Lookup v1 ist umgesetzt; größere Datenmengen und semantisches Matching sind Phase 4)
+
+## Entwicklung
+
+```bash
+cargo test          # 17 Tests, u.a. Determinismus, Migration, Lookup-Ranking
+cargo build --release
+```
+
+Der frühere Node.js-Prototyp wurde durch diese Rust-Implementierung ersetzt und aus dem Repository entfernt (in der Git-History weiterhin verfügbar).

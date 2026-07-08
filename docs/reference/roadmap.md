@@ -172,8 +172,8 @@ name-generator find "Werkzeug für Wald und Baum" --count 3 --explain
 - **Generator-Wortlisten on demand**: Nur bei großen Datenmengen (>5000 Wörter pro System) sinnvoll
 - **FTS5-Grobfilter**: Bei ~50k+ Zeilen für schnellere Suche relevant; bis dahin: Keyword-Matching ausreichend
 
-**Offen**:
-- **Entfernung des Node.js-Prototyps**: Entscheidung ausstehend (Archiv-Anforderung?, noch gebraucht?)
+**Erledigt (Juli 2026)**:
+- **Entfernung des Node.js-Prototyps**: app.js, config.json, csvData/, media/, package*.json entfernt; README neu geschrieben. Der Prototyp bleibt über die Git-History erreichbar.
 
 ---
 
