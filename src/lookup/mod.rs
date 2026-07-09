@@ -132,13 +132,27 @@ fn score_record(record: &WordRecord, tokens: &[String]) -> (f64, Vec<String>) {
     (total_score * record.seed_weight, matched)
 }
 
-/// Tokenize + score all + filter score > 0 + sort by score DESC, then seed_weight DESC, then word ASC (fully deterministic)
-pub fn rank(records: &[WordRecord], query: &str) -> Vec<Match> {
+/// Generalized ranking with candidate matching support.
+/// Takes semantic candidates (from --online expansion) and adds bonus scoring when
+/// they exactly match a record word (lowercased). Each candidate counts once per record.
+pub fn rank_with_candidates(records: &[WordRecord], query: &str, candidates: &[String]) -> Vec<Match> {
     let tokens = tokenize(query);
 
     let mut matches = Vec::new();
     for record in records {
-        let (score, matched) = score_record(record, &tokens);
+        let (mut score, mut matched) = score_record(record, &tokens);
+
+        // Check if any candidate matches this record's word (case-insensitive exact match)
+        let word_lower = record.word.to_lowercase();
+        for candidate in candidates {
+            let candidate_lower = candidate.to_lowercase();
+            if word_lower == candidate_lower {
+                score += 4.0;
+                matched.push(format!("{} (semantisch)", candidate));
+                break; // Each candidate counts once per record
+            }
+        }
+
         if score > 0.0 {
             matches.push(Match {
                 record: record.clone(),
@@ -165,6 +179,12 @@ pub fn rank(records: &[WordRecord], query: &str) -> Vec<Match> {
     });
 
     matches
+}
+
+/// Tokenize + score all + filter score > 0 + sort by score DESC, then seed_weight DESC, then word ASC (fully deterministic)
+/// Wrapper around rank_with_candidates with empty candidates for backwards compatibility.
+pub fn rank(records: &[WordRecord], query: &str) -> Vec<Match> {
+    rank_with_candidates(records, query, &[])
 }
 
 /// German one-liner justification: "<word> — <etymology> (<origin_lang>) · System: <system> · Treffer: <matched joined>"
@@ -429,5 +449,92 @@ mod tests {
         let result = suggest(&records, "bet alp", 10);
         // Should be in alphabetical order
         assert_eq!(result, vec!["alpha", "beta"]);
+    }
+
+    #[test]
+    fn test_rank_with_candidates_empty_candidates_equals_rank() {
+        let records = vec![
+            WordRecord {
+                id: "test1".to_string(),
+                word: "zeus".to_string(),
+                word_class: Some("noun".to_string()),
+                language: Some("grc".to_string()),
+                system: Some("test".to_string()),
+                tags: Some("king,sky".to_string()),
+                seed_weight: 1.0,
+                source: None,
+                etymology: None,
+                origin_lang: None,
+            },
+        ];
+
+        let rank_result = rank(&records, "sky");
+        let rank_with_candidates_result = rank_with_candidates(&records, "sky", &[]);
+
+        assert_eq!(rank_result.len(), rank_with_candidates_result.len());
+        assert_eq!(rank_result[0].score, rank_with_candidates_result[0].score);
+        assert_eq!(rank_result[0].record.word, rank_with_candidates_result[0].record.word);
+    }
+
+    #[test]
+    fn test_rank_with_candidates_exact_match() {
+        let records = vec![
+            WordRecord {
+                id: "test1".to_string(),
+                word: "forest".to_string(),
+                word_class: Some("noun".to_string()),
+                language: Some("en".to_string()),
+                system: Some("test".to_string()),
+                tags: Some("woods".to_string()),
+                seed_weight: 1.0,
+                source: None,
+                etymology: None,
+                origin_lang: None,
+            },
+            WordRecord {
+                id: "test2".to_string(),
+                word: "zeus".to_string(),
+                word_class: Some("noun".to_string()),
+                language: Some("grc".to_string()),
+                system: Some("test".to_string()),
+                tags: Some("king,sky".to_string()),
+                seed_weight: 1.0,
+                source: None,
+                etymology: None,
+                origin_lang: None,
+            },
+        ];
+
+        let candidates = vec!["forest".to_string(), "woodland".to_string()];
+        let result = rank_with_candidates(&records, "trees", &candidates);
+
+        // forest should be in results and have higher score due to semantic match
+        assert!(result.iter().any(|m| m.record.word == "forest"));
+        let forest_match = result.iter().find(|m| m.record.word == "forest").unwrap();
+        assert!(forest_match.matched.iter().any(|m| m.contains("semantisch")));
+    }
+
+    #[test]
+    fn test_rank_with_candidates_case_insensitive() {
+        let records = vec![
+            WordRecord {
+                id: "test1".to_string(),
+                word: "Forest".to_string(),
+                word_class: Some("noun".to_string()),
+                language: Some("en".to_string()),
+                system: Some("test".to_string()),
+                tags: None,
+                seed_weight: 1.0,
+                source: None,
+                etymology: None,
+                origin_lang: None,
+            },
+        ];
+
+        let candidates = vec!["forest".to_string()];
+        let result = rank_with_candidates(&records, "trees", &candidates);
+
+        assert_eq!(result.len(), 1);
+        assert!(result[0].matched.iter().any(|m| m.contains("semantisch")));
     }
 }

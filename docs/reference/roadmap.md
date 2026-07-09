@@ -212,32 +212,70 @@ spoor find "Werkzeug für Wald und Baum" --count 3 --explain
 
 ---
 
-### Phase 4b: Semantik-Upgrade (Embeddings, optional, später)
+### Phase 4b: Query-Expansion via Datamuse API ✅ FERTIG
 
-**Zeitraum**: Optional, nach Phase 3 / Phase 4a
+**Zeitraum**: Mit diesem Commit
+
+**Ziele**:
+- Neue Flag: `spoor find <query> --online` für semantische Query-Expansion
+- Query wird semantisch via Datamuse API (`api.datamuse.com/words`, Parameter `ml=<query>`) erweitert
+- Datamuse antwortet mit bedeutungsähnlichen Wörtern (z. B. `"forest"` → `["woodland", "grove", "canopy", ...]`)
+- Diese Kandidaten werden mit **exaktem Match** gegen die lokale Datenbank gematcht (Bonus: +4.0 Score)
+- Gefundene Kandidaten sind in der Ausgabe mit `(semantisch)` markiert
+- **Offline bleibt der Standard**: `--online` ist optional, offline-Pfad unverändert
+- Fehler werden deutsch beantwortet (Netzwerk-Fehler → German error message + Hinweis)
+- JSON-Format erweitert: `"candidates": [...]` Array bei `--online`
+
+**Deliverables**:
+- ✅ `src/sources.rs`: neue Enums `ExpansionBackend`, neue Struct `QueryExpansionSpec`, Test für unknown backend
+- ✅ `src/fetch/mod.rs`: `parse_datamuse_response()`, `expand_query()` (REST-GET mit ureq, 10s Timeout)
+- ✅ `src/lookup/mod.rs`: neue Funktion `rank_with_candidates()` (generalisiertes Ranking mit Kandidaten-Support), `rank()` wird Wrapper
+- ✅ `src/cli.rs`: `--online` Flag für `find`-Command, Error-Handling (missing query_expansion block), No-Matches-Hint mit Kandidaten
+- ✅ `sources.yaml`: optionaler `query_expansion` Block (backend: datamuse-ml, url, max_candidates)
+- ✅ Tests: `parse_datamuse_response()` (multiword filtering, max-respecting), `expand_query()` (#[ignore] Netzwerktest), `rank_with_candidates()` (exact-match bonus, empty candidates = rank result), `load_sources()` mit query_expansion
+- ✅ Dokumentation: `cli.md` (--online Abschnitt), `data-model.md` (query_expansion Block), `roadmap.md` (diese Phase)
+
+**Status**: ✅ FERTIG
+- ✅ `cargo build` — Zero Warnings
+- ✅ `cargo test` — alle grün (37 + 1 ignored network test)
+- ✅ `cargo test -- --ignored` — Netzwerk-Smoke-Test gegen echte Datamuse API grün
+- ✅ `spoor find "king ruler" --online --count 3` → Ergebnisse mit möglichen semantischen Hits
+- ✅ `spoor find "synchronize logs distributed" --online` → kandidatenlose Fehler-Ausgabe mit Hinweis
+- ✅ `spoor find "sky thunder king"` (ohne --online) → identisch zu Offline-Pfad ("zeus")
+- ✅ JSON-Format: `"candidates"` Array vorhanden, aber leer offline
+
+**Abhängigkeiten**: Phase 0, Phase 2, Phase 3, Phase 4a
+
+**Hinweis**: Semantisches Loch teilweise geschlossen. Vollständige semantische Suche (Embeddings) bleibt Phase 4c.
+
+---
+
+### Phase 4c: Semantik-Upgrade (Embeddings, optional, später)
+
+**Zeitraum**: Optional, nach Phase 4b
 
 **Ziele**:
 - Lokale Embeddings (z. B. via ONNX, Sentence-Transformers-Modell)
 - Hinter derselben `find`-Oberfläche wie Phase 3
-- Bessere semantische Matches (statt nur Keyword-Matching)
+- Bessere semantische Matches (statt nur Datamuse-API-Erweiterung)
 - **Optional**: Wiktionary-Dump-Import-Pipeline (großes Datenvolumen)
 
 **Deliverables**:
 - `src/lookup/embed.rs` — ONNX/Embeddings-Wrapper
 - Embedding-Modell (klein, lokal) oder Download-On-First-Run
-- Scoring-Upgrade: Cosine-Similarity statt Keyword-Matching
+- Scoring-Upgrade: Cosine-Similarity statt nur Datamuse + Keyword-Matching
 - Dokumentation der Anforderungen (Modellgröße, RAM-Nutzung)
 
 **Status**: ⏳ OPTIONAL
 
-**Abhängigkeiten**: Phase 3
+**Abhängigkeiten**: Phase 3, Phase 4b
 
 **Entscheidung ausstehend**: 
 - Größe des Binary (mit Embedding-Modell?)
 - Download-on-First-Run vs. Bundle?
 - Welches Modell?
 
-**Hinweis**: Nicht erzwungen, wenn die Keyword-Suche (Phase 3) ausreicht.
+**Hinweis**: Nicht erzwungen, wenn die Datamuse-Erweiterung (Phase 4b) + Keyword-Suche (Phase 3) ausreicht.
 
 ---
 
@@ -303,7 +341,17 @@ spoor find "Werkzeug für Wald und Baum" --count 3 --explain
 - ✅ `cargo test` — 14 grün (8 integration + 6 lookup)
 - ✅ `cargo build` — Zero Warnings
 
-### Phase 4 (optional)
+### Phase 4b ✅
+
+- ✅ `find --online` flag funktioniert
+- ✅ Datamuse API integriert (ureq, 10s Timeout)
+- ✅ Query-Expansion Kandidaten werden gematcht (Score +4.0)
+- ✅ Fehlerbehandlung: missing query_expansion block, Netzwerkfehler
+- ✅ JSON-Format: `"candidates"` Array enthalten
+- ✅ `cargo test` — alle Tests grün inkl. Netzwerk-Smoke
+- ✅ Offline-Pfad unverändert
+
+### Phase 4c (optional)
 
 - Embedding-basierte Suche funktioniert
 - Binary-Größe akzeptabel

@@ -16,6 +16,34 @@ impl Backend {
     }
 }
 
+/// Supported backend types for query expansion.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+pub enum ExpansionBackend {
+    #[serde(rename = "datamuse-ml")]
+    DatamuseMl,
+}
+
+impl ExpansionBackend {
+    /// Return all supported expansion backend type names for error messaging.
+    fn supported() -> &'static [&'static str] {
+        &["datamuse-ml"]
+    }
+}
+
+/// Configuration for semantic query expansion.
+#[derive(Debug, Clone, Deserialize)]
+pub struct QueryExpansionSpec {
+    pub backend: ExpansionBackend,
+    pub url: String,
+    #[serde(default = "default_max_candidates")]
+    pub max_candidates: usize,
+}
+
+/// Default max_candidates value for query expansion.
+fn default_max_candidates() -> usize {
+    10
+}
+
 /// Configuration for a single word source.
 #[derive(Debug, Clone, Deserialize)]
 pub struct SourceSpec {
@@ -41,6 +69,8 @@ fn default_max_words() -> usize {
 #[derive(Debug, Deserialize)]
 pub struct SourcesConfig {
     pub sources: Vec<SourceSpec>,
+    #[serde(default)]
+    pub query_expansion: Option<QueryExpansionSpec>,
 }
 
 /// Load and parse sources.yaml file.
@@ -67,6 +97,16 @@ pub fn load_sources(path: impl AsRef<Path>) -> anyhow::Result<SourcesConfig> {
                 format!("{:?}", source.backend).to_lowercase(),
                 source.id,
                 Backend::supported().join(", ")
+            );
+        }
+    }
+
+    // Validate query_expansion backend if present
+    if let Some(ref expansion) = config.query_expansion {
+        if expansion.backend != ExpansionBackend::DatamuseMl {
+            anyhow::bail!(
+                "unknown expansion backend. Supported: {}",
+                ExpansionBackend::supported().join(", ")
             );
         }
     }
@@ -160,5 +200,59 @@ sources:
         assert_eq!(config.sources.len(), 1);
         assert_eq!(config.sources[0].skip_classes.len(), 1);
         assert_eq!(config.sources[0].skip_classes[0], "proper");
+    }
+
+    #[test]
+    fn test_load_sources_with_query_expansion() {
+        let yaml_content = r#"
+sources:
+  - id: kaikki-de
+    backend: wiktextract-jsonl
+    url: https://example.org/de.jsonl
+    language: de
+    system: wiktionary_de
+
+query_expansion:
+  backend: datamuse-ml
+  url: https://api.datamuse.com/words
+  max_candidates: 10
+"#;
+
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(yaml_content.as_bytes()).unwrap();
+        file.flush().unwrap();
+
+        let config = load_sources(file.path()).expect("failed to load valid YAML");
+        assert!(config.query_expansion.is_some());
+        let expansion = config.query_expansion.unwrap();
+        assert_eq!(expansion.backend, ExpansionBackend::DatamuseMl);
+        assert_eq!(expansion.url, "https://api.datamuse.com/words");
+        assert_eq!(expansion.max_candidates, 10);
+    }
+
+    #[test]
+    fn test_load_sources_unknown_expansion_backend() {
+        let yaml_content = r#"
+sources:
+  - id: kaikki-de
+    backend: wiktextract-jsonl
+    url: https://example.org/de.jsonl
+    language: de
+    system: wiktionary_de
+
+query_expansion:
+  backend: foo
+  url: https://example.org
+  max_candidates: 10
+"#;
+
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(yaml_content.as_bytes()).unwrap();
+        file.flush().unwrap();
+
+        let result = load_sources(file.path());
+        assert!(result.is_err());
+        // The error should be about unknown backend value
+        // Either from serde (during parse) or from our validation
     }
 }

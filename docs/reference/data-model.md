@@ -122,6 +122,43 @@ sources:
 
 Nur diese Backend-Typen haben eine Implementierung im Code — andere Werte in `backend` schlagen beim Laden der Datei fehl (mit einer Liste der unterstützten Typen in der Fehlermeldung).
 
+### query_expansion — Semantische Query-Erweiterung
+
+Optional: Ein Block `query_expansion` in `sources.yaml` aktiviert semantische Erweiterung für `spoor find --online`. Die Datamuse API liefert bedeutungsähnliche Wörter zur Query, die dann gegen die lokale Datenbank gematcht werden.
+
+#### Format
+
+```yaml
+query_expansion:
+  backend: datamuse-ml
+  url: https://api.datamuse.com/words
+  max_candidates: 10
+```
+
+#### Felder
+
+| Feld | Typ | Erforderlich | Beschreibung |
+|------|-----|------------|-------------|
+| `backend` | String | Ja | Parser-Typ für Query-Expansion. Aktuell unterstützt: `datamuse-ml` (Datamuse API). Unbekannte Werte lassen `load_sources()` mit einer Fehlermeldung abbrechen. |
+| `url` | String | Ja | HTTP(S)-URL des Expansion-Service (z. B. `https://api.datamuse.com/words`). Der Code sendet GET-Parameter: `ml=<query>&max=<max_candidates>`. |
+| `max_candidates` | usize | Nein (Standard: 10) | Maximale Anzahl der von der API angeforderten Kandidaten. Höhere Werte bedeuten mehr semantische Treffer, aber längere Antwortzeiten. |
+
+#### Unterstützte Backends
+
+| Backend | Typ | Beschreibung |
+|---------|------|-------------|
+| `datamuse-ml` | REST API | Datamuse API (`api.datamuse.com/words`). Der `ml`-Parameter (means-like) sucht nach bedeutungsähnlichen Wörtern. Beispiel: `ml=forest` antwortet mit `["woodland", "grove", "canopy", ...]`. Timeout: 10 Sekunden. |
+
+#### Verhalten
+
+1. `spoor find <query> --online` liest die `query_expansion`-Konfiguration
+2. Die Query wird an die API gesendet (z. B. `https://api.datamuse.com/words?ml=forest&max=10`)
+3. Die API antwortet mit einem JSON-Array von Kandidatenwörtern
+4. Diese werden mit exaktem Match gegen die lokale Datenbank geprüft (Bonus: +4.0 Score, Label: `(semantisch)`)
+5. Gefundene Wörter werden bei den Treffern angezeigt
+
+Wenn der Block `query_expansion` fehlt, schlägt `--online` mit einer Fehlermeldung fehl.
+
 ### Duplikate
 
 Wie bei `db import` gilt: `id` in der Datenbank ist `language_word`. Kommt derselbe Wortstamm mehrfach in der Quelldatei vor (z. B. mehrere Wiktionary-Einträge zum selben Lemma mit unterschiedlichen Bedeutungen), überschreibt der letzte gelesene Eintrag die vorherigen (`INSERT OR REPLACE`). Das ist der Grund, warum die Anzahl der `list systems`-Zeilen nach einem Fetch kleiner sein kann als die Anzahl der als "importiert" gemeldeten Wörter.

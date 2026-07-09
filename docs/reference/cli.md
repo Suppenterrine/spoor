@@ -259,6 +259,7 @@ spoor find <QUERY> [OPTIONS]
 | `--systems <SYSTEMS>` | String | Komma-getrennte Liste von Systemen zum Filtern (z. B. `nature,myth_greek`). |
 | `--explain` | flag | Zeigt detaillierte Erklärungen (Etymologie, Herkunftssprache, System, Treffer). |
 | `--format <FORMAT>` | text \| json | Ausgabeformat. Standardwert: `text` |
+| `--online` | flag | Aktiviert semantische Query-Expansion über die Datamuse API (erfordert `query_expansion` Block in `sources.yaml`). |
 | `--config <CONFIG>` | Path | Konfigurationsdatei-Pfad. Standardwert: `config.toml` |
 
 ### Ausgabeformat nach Kontext
@@ -295,6 +296,52 @@ Jeder Token der Query wird gegen alle Datensätze gewertet:
 - **Etymologie Substring** (min. 3 Zeichen): 1.0 Punkte
 
 Jeder Token wertet jede Feldkategorie höchstens einmal. Die Gesamtpunktzahl wird mit dem `seed_weight` des Worts multipliziert. Sortierung: Score (DESC) → seed_weight (DESC) → Wort (ASC).
+
+### Semantische Query-Expansion mit --online
+
+Mit der Flag `--online` wird die Query über die **Datamuse API** semantisch erweitert, bevor die lokale Datenbank durchsucht wird:
+
+1. Die Query wird an `api.datamuse.com/words` mit dem `ml`-Parameter (means-like) gesendet
+2. Datamuse antwortet mit semantisch ähnlichen Wörtern (z. B. `"forest"` → `"woodland"`, `"grove"`, `"canopy"`)
+3. Diese **Kandidaten** werden mit exaktem Wort-Match gegen die lokale Datenbank geprüft (Score +4.0)
+4. Gefundene Kandidaten sind im Output mit dem Label `(semantisch)` markiert
+
+**Anforderungen:**
+- `query_expansion` Block in `sources.yaml` muss konfiguriert sein (Standard: bereits vorhanden)
+- Netzwerkzugriff auf `api.datamuse.com` (10s Timeout)
+
+**Verhalten bei Fehlern:**
+- Netzwerkfehler → fehlschlag mit deutschem Error (stderr), Hinweis `--online` zu deaktivieren
+- Keine Matches gefunden, aber Kandidaten von Datamuse → Hinweis: `spoor db fetch --limit 5000` zur Erweiterung des Bestands
+
+**JSON-Format:**
+- Bei `--format json` wird ein `"candidates": [...]` Array in der Ausgabe enthalten (leer offline)
+
+#### Beispiel: Online-Erweiterung
+
+```bash
+spoor find "synchronize logs distributed" --online --count 3
+```
+
+Wenn Kandidaten im Bestand vorhanden:
+```
+mesh
+stock
+pool
+```
+
+Matched-Einträge zeigen `(semantisch)`:
+```
+mesh — ... · Treffer: mesh (semantisch)
+```
+
+Wenn Kandidaten im Bestand fehlen (Fehlerfall):
+```
+Keine Treffer fuer 'synchronize logs distributed'.
+Naechster Schritt: spoor db fetch --limit 5000 auszufuehren, um mehr Woerter zu laden oder mit anderen Schluesseln suchen
+Semantische Kandidaten (Datamuse) ohne Eintrag im Bestand: mesh, stock, pool, ...
+Hinweis: spoor db fetch --limit 5000 ausfuehren, um den Bestand zu erweitern
+```
 
 ### Keine Treffer: Ähnliche Wörter
 

@@ -57,7 +57,7 @@ enum Commands {
         format: String,
     },
     /// Find a single fitting word for a use-case description
-    #[command(after_help = "EXAMPLES:\n  Find a word for 'sky thunder king' with etymology:\n    spoor find \"sky thunder king\" --explain\n\n  Find 3 German words for 'Werkzeug für Wald und Baum':\n    spoor find \"Werkzeug fuer Wald und Baum\" --count 3 --explain")]
+    #[command(after_help = "EXAMPLES:\n  Find a word for 'sky thunder king' with etymology:\n    spoor find \"sky thunder king\" --explain\n\n  Find 3 German words for 'Werkzeug für Wald und Baum':\n    spoor find \"Werkzeug fuer Wald und Baum\" --count 3 --explain\n\n  Find a word with semantic expansion (Datamuse API):\n    spoor find \"synchronize logs distributed\" --online --count 3")]
     Find {
         /// Use-case description (one quoted string)
         query: String,
@@ -77,6 +77,10 @@ enum Commands {
         /// Output format (text or json)
         #[arg(long, default_value = "text")]
         format: String,
+
+        /// Enable semantic query expansion via Datamuse API (requires query_expansion in sources.yaml)
+        #[arg(long)]
+        online: bool,
     },
     /// Explore the word database
     #[command(subcommand)]
@@ -153,6 +157,8 @@ struct FindMatch {
 struct FindOutput {
     query: String,
     matches: Vec<FindMatch>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    candidates: Vec<String>,
 }
 
 impl Cli {
@@ -226,6 +232,7 @@ impl Cli {
                 systems,
                 explain,
                 format,
+                online,
             } => {
                 let (_cfg, db, _bootstrapped) = open_context_bootstrapped(self.config.as_deref())?;
 
@@ -233,14 +240,48 @@ impl Cli {
                 let systems_filter = systems.map(|s| split_comma_list(&s));
                 let records = db.all_records(systems_filter.as_deref())?;
 
-                // Rank records against the query
-                let matches = lookup::rank(&records, &query);
+                // Determine candidates for ranking
+                let candidates = if online {
+                    // Load sources.yaml to get query_expansion config
+                    let sources = match load_sources("sources.yaml") {
+                        Ok(src) => src,
+                        Err(_) => {
+                            return Err(anyhow::anyhow!(
+                                "--online braucht einen query_expansion-Block in sources.yaml\n\nHinweis: Siehe sources.yaml in der Dokumentation"
+                            ));
+                        }
+                    };
+
+                    let expansion_spec = match sources.query_expansion {
+                        Some(spec) => spec,
+                        None => {
+                            return Err(anyhow::anyhow!(
+                                "--online braucht einen query_expansion-Block in sources.yaml\n\nHinweis: Siehe sources.yaml in der Dokumentation"
+                            ));
+                        }
+                    };
+
+                    // Call expand_query
+                    match crate::fetch::expand_query(&expansion_spec, &query) {
+                        Ok(cands) => cands,
+                        Err(e) => {
+                            eprintln!("Fehler bei der semantischen Expansion: {}", e);
+                            eprintln!("Hinweis: Bitte versuchen Sie es erneut oder verwenden Sie --online nicht");
+                            std::process::exit(1);
+                        }
+                    }
+                } else {
+                    Vec::new()
+                };
+
+                // Rank records against the query with optional candidates
+                let matches = lookup::rank_with_candidates(&records, &query, &candidates);
 
                 if matches.is_empty() {
                     let hint = if systems_filter.is_some() {
                         "es ohne --systems zu versuchen, um mehr Treffer zu finden"
                     } else {
-                        "spoor db fetch --limit 1000 auszufuehren, um mehr Woerter zu laden"
+                        "spoor db fetch --limit 5000 auszufuehren, um mehr Woerter zu laden"
                     };
                     eprintln!("Keine Treffer fuer '{}'.", query);
                     eprintln!("Naechster Schritt: {} oder mit anderen Schluesseln suchen", hint);
@@ -249,6 +290,11 @@ impl Cli {
                     let suggestions = lookup::suggest(&records, &query, 5);
                     if !suggestions.is_empty() {
                         eprintln!("Aehnliche Woerter im Bestand: {}", suggestions.join(", "));
+                    }
+
+                    // If online and candidates were found but no matches
+                    if online && !candidates.is_empty() {
+                        eprintln!("Semantische Kandidaten (Datamuse) ohne Eintrag im Bestand: {}", candidates.join(", "));
                     }
 
                     std::process::exit(1);
@@ -274,6 +320,7 @@ impl Cli {
                     let out = FindOutput {
                         query,
                         matches: json_matches,
+                        candidates: if online { candidates } else { Vec::new() },
                     };
                     println!("{}", serde_json::to_string_pretty(&out)?);
                 } else {

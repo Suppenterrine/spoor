@@ -47,3 +47,12 @@ sources:
     system: wiktionary_he
     max_words: 500
     skip_classes: [proper]
+
+# Optionale semantische Query-Expansion fuer 'spoor find --online'.
+# Auch hier gilt: NUR fuer die folgenden backend-Typen existiert eine
+# Implementierung im Code - andere Werte schlagen beim Laden fehl:
+#   - datamuse-ml   (api.datamuse.com; liefert bedeutungsaehnliche Woerter zur Beschreibung)
+query_expansion:
+  backend: datamuse-ml
+  url: https://api.datamuse.com/words
+  max_candidates: 10

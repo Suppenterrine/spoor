@@ -269,6 +269,48 @@ pub fn consume_jsonl<R: Read>(
     }
 }
 
+/// Offline-testable parse of a Datamuse response body: JSON array of {"word": ..., "score": ...}.
+/// Returns at most max words, single words only (skip entries containing whitespace).
+pub fn parse_datamuse_response(body: &str, max: usize) -> anyhow::Result<Vec<String>> {
+    let array: Vec<serde_json::Value> = serde_json::from_str(body)
+        .with_context(|| "failed to parse Datamuse response as JSON array")?;
+
+    let mut words = Vec::new();
+    for item in array.iter().take(max * 2) {
+        // Extract "word" field
+        if let Some(serde_json::Value::String(w)) = item.get("word") {
+            // Only include single words (no whitespace)
+            if !w.contains(char::is_whitespace) {
+                words.push(w.clone());
+                if words.len() >= max {
+                    break;
+                }
+            }
+        }
+    }
+
+    Ok(words)
+}
+
+/// GET <spec.url>?ml=<query>&max=<max_candidates> with a 10s timeout via ureq (.query() handles encoding).
+pub fn expand_query(spec: &crate::sources::QueryExpansionSpec, query: &str) -> anyhow::Result<Vec<String>> {
+    match spec.backend {
+        crate::sources::ExpansionBackend::DatamuseMl => {
+            let response = ureq::get(&spec.url)
+                .query("ml", query)
+                .query("max", &spec.max_candidates.to_string())
+                .timeout(Duration::from_secs(10))
+                .call()
+                .with_context(|| format!("failed to fetch from Datamuse API for query '{}'", query))?;
+
+            let body = response.into_string()
+                .with_context(|| "failed to read Datamuse response body")?;
+
+            parse_datamuse_response(&body, spec.max_candidates)
+        }
+    }
+}
+
 /// Open the HTTP(S) body for `spec.url` as a streaming reader, transparently
 /// gunzipping if the URL ends in `.gz`. Returns the reader plus a shared byte
 /// counter tracking raw (pre-decompression) bytes pulled off the wire.
@@ -623,5 +665,62 @@ mod tests {
             .expect("failed to parse");
 
         assert!(result.is_some(), "empty skip_classes should allow all classes");
+    }
+
+    #[test]
+    fn test_parse_datamuse_response_three_words() {
+        let body = r#"[
+            {"word": "forest", "score": 100},
+            {"word": "tree canopy", "score": 90},
+            {"word": "woodland", "score": 80}
+        ]"#;
+
+        let result = parse_datamuse_response(body, 10)
+            .expect("failed to parse Datamuse response");
+
+        // Should contain forest and woodland, but not "tree canopy" (has whitespace)
+        assert_eq!(result.len(), 2);
+        assert!(result.contains(&"forest".to_string()));
+        assert!(result.contains(&"woodland".to_string()));
+    }
+
+    #[test]
+    fn test_parse_datamuse_response_respects_max() {
+        let body = r#"[
+            {"word": "forest", "score": 100},
+            {"word": "woodland", "score": 90},
+            {"word": "grove", "score": 80},
+            {"word": "canopy", "score": 70}
+        ]"#;
+
+        let result = parse_datamuse_response(body, 2)
+            .expect("failed to parse Datamuse response");
+
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0], "forest");
+        assert_eq!(result[1], "woodland");
+    }
+
+    #[test]
+    fn test_parse_datamuse_response_broken_json() {
+        let body = r#"[{"word": "forest", "score": 100,]"#;
+
+        let result = parse_datamuse_response(body, 10);
+        assert!(result.is_err(), "broken JSON should return error");
+    }
+
+    #[test]
+    #[ignore]
+    fn test_expand_query_real_api() {
+        let spec = crate::sources::QueryExpansionSpec {
+            backend: crate::sources::ExpansionBackend::DatamuseMl,
+            url: "https://api.datamuse.com/words".to_string(),
+            max_candidates: 5,
+        };
+
+        let result = expand_query(&spec, "tree")
+            .expect("failed to expand query");
+
+        assert!(!result.is_empty(), "should return non-empty candidates for 'tree'");
     }
 }
