@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use anyhow::Context;
 use clap::{Parser, Subcommand};
+use console::style;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use serde::Serialize;
 
@@ -243,6 +244,13 @@ impl Cli {
                     };
                     eprintln!("Keine Treffer fuer '{}'.", query);
                     eprintln!("Naechster Schritt: {} oder mit anderen Schluesseln suchen", hint);
+
+                    // Add suggestions line if available
+                    let suggestions = lookup::suggest(&records, &query, 5);
+                    if !suggestions.is_empty() {
+                        eprintln!("Aehnliche Woerter im Bestand: {}", suggestions.join(", "));
+                    }
+
                     std::process::exit(1);
                 }
 
@@ -269,11 +277,18 @@ impl Cli {
                     };
                     println!("{}", serde_json::to_string_pretty(&out)?);
                 } else {
-                    // Text format
+                    // Text format: check if stdout is a TTY
+                    let is_tty = console::user_attended();
+
                     for m in matches.iter().take(take_count) {
-                        if explain {
+                        if is_tty && !explain {
+                            // TTY without --explain: use rich block format (new default)
+                            print!("{}", format_match_rich(m));
+                        } else if explain {
+                            // --explain: always use the single-line explain format
                             println!("{}", lookup::explain(m));
                         } else {
+                            // Non-TTY: plain one-word-per-line
                             println!("{}", m.record.word);
                         }
                     }
@@ -548,6 +563,45 @@ fn split_comma_list(value: &str) -> Vec<String> {
         .split(',')
         .map(|s| s.trim().to_string())
         .collect()
+}
+
+/// Format a match as a rich block (for TTY output).
+/// Returns a multi-line formatted string with color styling.
+/// Structure:
+///   word (bold, cyan)
+///   system · etymology (origin_lang) (dim; system magenta)
+///   Treffer: matched tokens (dim green)
+fn format_match_rich(m: &lookup::Match) -> String {
+    let word = style(&m.record.word).bold().cyan().to_string();
+
+    let etymology = m.record.etymology.as_deref().unwrap_or("?");
+    let origin_lang = m.record.origin_lang.as_deref().unwrap_or("?");
+    let system = m.record.system.as_deref().unwrap_or("?");
+
+    // Second line: dim system (in magenta) and etymology with origin lang
+    let system_line = format!(
+        "  {} · {} ({})",
+        style(system).magenta().dim(),
+        style(etymology).dim(),
+        origin_lang
+    );
+
+    // Third line: dim green tags with matched hits
+    let matched = m.matched.join(" · ");
+    let tags_str = m.record.tags.as_deref().unwrap_or("");
+    let tags_suffix = if !tags_str.is_empty() {
+        format!(" · {}", tags_str)
+    } else {
+        String::new()
+    };
+
+    let treffer_line = format!(
+        "  {}{}",
+        style(format!("Treffer: {}", matched)).green().dim(),
+        tags_suffix
+    );
+
+    format!("{}\n{}\n{}\n", word, system_line, treffer_line)
 }
 
 fn load_wordlists(db: &Db, systems: Option<&str>) -> anyhow::Result<WordLists> {

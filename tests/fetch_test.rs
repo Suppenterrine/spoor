@@ -15,6 +15,7 @@ fn make_spec(id: &str, lang: &str) -> SourceSpec {
         language: lang.to_string(),
         system: format!("test_{}", lang),
         max_words: 100,
+        skip_classes: Vec::new(),
     }
 }
 
@@ -317,6 +318,7 @@ fn test_fetch_all_reports_error_for_bad_source_without_aborting() {
         language: "xx".to_string(),
         system: "test_bad".to_string(),
         max_words: 10,
+        skip_classes: Vec::new(),
     };
 
     let progress = RecordingProgress::new();
@@ -350,6 +352,7 @@ fn test_fetch_all_network_smoke_kaikki_la() {
         language: "la".to_string(),
         system: "wiktionary_la".to_string(),
         max_words: 20,
+        skip_classes: Vec::new(),
     };
 
     let progress = RecordingProgress::new();

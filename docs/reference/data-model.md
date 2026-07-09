@@ -112,6 +112,7 @@ sources:
 | `language` | String | Ja | Sprachcode, der jedem importierten Wort zugewiesen wird (z. B. `de`, `en`, `la`). |
 | `system` | String | Ja | System-ID, der jedem importierten Wort zugewiesen wird (z. B. `wiktionary_de`). |
 | `max_words` | usize | Nein (Standard: 500) | Maximale Anzahl akzeptierter Wörter. Das Streaming stoppt SOFORT, sobald dieses Limit erreicht ist — der Rest der (oft GB-großen) Datei wird nie gelesen oder heruntergeladen. Kann pro Lauf mit `db fetch --limit N` überschrieben werden (für alle ausgewählten Quellen). |
+| `skip_classes` | Array[String] | Nein (Standard: leer) | Wortklassen, die während des Parsens übersprungen werden. Gültige Werte: `proper` (Eigennamen), `noun` (Nomen), `adj` (Adjektive). Beispiel: `skip_classes: [proper]` filtert alle Eigennamen aus. Hilft, längere Wiktionary-Exporte (z. B. Altgriechisch, Hebräisch) zu bereinigen, die am Anfang von Eigennamen dominiert werden. |
 
 ### Unterstützte Backends
 

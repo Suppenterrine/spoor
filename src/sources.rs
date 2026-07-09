@@ -26,6 +26,10 @@ pub struct SourceSpec {
     pub system: String,
     #[serde(default = "default_max_words")]
     pub max_words: usize,
+    /// Word classes to skip during parsing (e.g., ["proper"]).
+    /// Matched classes: proper, noun, adj
+    #[serde(default)]
+    pub skip_classes: Vec<String>,
 }
 
 /// Default max_words value.
@@ -109,6 +113,7 @@ sources:
         assert_eq!(config.sources[0].backend, Backend::WiktextractJsonl);
         assert_eq!(config.sources[0].language, "de");
         assert_eq!(config.sources[0].max_words, 250);
+        assert_eq!(config.sources[0].skip_classes.is_empty(), true);
         assert_eq!(config.sources[1].id, "kaikki-en");
         assert_eq!(config.sources[1].max_words, 500); // default
     }
@@ -133,5 +138,27 @@ sources:
         let err_msg = result.unwrap_err().to_string();
         // Should contain info about supported backends
         assert!(err_msg.contains("wiktextract-jsonl"));
+    }
+
+    #[test]
+    fn test_load_sources_with_skip_classes() {
+        let yaml_content = r#"
+sources:
+  - id: kaikki-grc
+    backend: wiktextract-jsonl
+    url: https://example.org/grc.jsonl
+    language: grc
+    system: wiktionary_grc
+    skip_classes: [proper]
+"#;
+
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(yaml_content.as_bytes()).unwrap();
+        file.flush().unwrap();
+
+        let config = load_sources(file.path()).expect("failed to load valid YAML");
+        assert_eq!(config.sources.len(), 1);
+        assert_eq!(config.sources[0].skip_classes.len(), 1);
+        assert_eq!(config.sources[0].skip_classes[0], "proper");
     }
 }

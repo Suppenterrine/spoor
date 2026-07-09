@@ -261,6 +261,29 @@ spoor find <QUERY> [OPTIONS]
 | `--format <FORMAT>` | text \| json | Ausgabeformat. Standardwert: `text` |
 | `--config <CONFIG>` | Path | Konfigurationsdatei-Pfad. Standardwert: `config.toml` |
 
+### Ausgabeformat nach Kontext
+
+Die Ausgabe wechselt automatisch je nach Kontext:
+
+**Im Terminal (TTY):**
+- Standardmäßig wird ein reichhaltiger Block pro Treffer angezeigt (farbig formatiert, mit Etymologie, System, Tags und Treffern)
+- Mit `--explain` wird dasselbe Format verwendet (es ist der Erklärformat)
+
+**Weitergeleitet (Pipe, Redirect):**
+- Ein Wort pro Zeile (Skripte brechen nicht)
+- Mit `--explain` wird eine kompakte Erklärungszeile pro Wort gezeigt
+
+**Beispiel TTY-Ausgabe:**
+```
+zeus (bold, cyan)
+  griech. Zeus, idg. *dyeus 'Himmel, Tag' (grc) · wiktionary_greek · Treffer: sky (tag) · thunder (tag) · king (tag)
+```
+
+**Beispiel Pipe-Ausgabe:**
+```
+zeus
+```
+
 ### Scoring-Regeln
 
 Jeder Token der Query wird gegen alle Datensätze gewertet:
@@ -272,6 +295,24 @@ Jeder Token der Query wird gegen alle Datensätze gewertet:
 - **Etymologie Substring** (min. 3 Zeichen): 1.0 Punkte
 
 Jeder Token wertet jede Feldkategorie höchstens einmal. Die Gesamtpunktzahl wird mit dem `seed_weight` des Worts multipliziert. Sortierung: Score (DESC) → seed_weight (DESC) → Wort (ASC).
+
+### Keine Treffer: Ähnliche Wörter
+
+Wenn keine Treffer gefunden werden, versucht spoor automatisch, ähnliche Wörter im Bestand zu vorschlagen:
+- **Präfix-Match**: Wörter, die mit den ersten 3 Zeichen des Tokens beginnen
+- **Levenshtein-Distanz**: Wörter mit maximal 2 Editierdistanzen
+- Ausgabe: `Aehnliche Woerter im Bestand: <a>, <b>, <c>` auf stderr
+
+Beispiel:
+```bash
+spoor find "xyzzz"
+```
+Ausgabe:
+```
+Keine Treffer fuer 'xyzzz'.
+Naechster Schritt: spoor db fetch --limit 1000 auszufuehren, um mehr Woerter zu laden oder mit anderen Schluesseln suchen
+Aehnliche Woerter im Bestand: xyz, xys, xyt
+```
 
 ### Beispiele
 

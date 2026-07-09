@@ -1,5 +1,5 @@
 use crate::db::WordRecord;
-use std::collections::HashSet;
+use std::collections::{HashSet, BTreeSet};
 
 pub struct Match {
     pub record: WordRecord,
@@ -179,4 +179,255 @@ pub fn explain(m: &Match) -> String {
         "{} — {} ({}) · System: {} · Treffer: {}",
         word, etymology, origin_lang, system, matched
     )
+}
+
+/// Calculate the Levenshtein distance between two strings using dynamic programming.
+/// Returns the minimum number of single-character edits required to transform one string into another.
+fn levenshtein_distance(a: &str, b: &str) -> usize {
+    let a_len = a.chars().count();
+    let b_len = b.chars().count();
+
+    if a_len == 0 {
+        return b_len;
+    }
+    if b_len == 0 {
+        return a_len;
+    }
+
+    let mut matrix = vec![vec![0; b_len + 1]; a_len + 1];
+
+    // Initialize first row and column
+    for i in 0..=a_len {
+        matrix[i][0] = i;
+    }
+    for j in 0..=b_len {
+        matrix[0][j] = j;
+    }
+
+    // Fill the matrix
+    let a_chars: Vec<char> = a.chars().collect();
+    let b_chars: Vec<char> = b.chars().collect();
+
+    for i in 1..=a_len {
+        for j in 1..=b_len {
+            let cost = if a_chars[i - 1] == b_chars[j - 1] { 0 } else { 1 };
+            matrix[i][j] = std::cmp::min(
+                std::cmp::min(
+                    matrix[i - 1][j] + 1,     // deletion
+                    matrix[i][j - 1] + 1,     // insertion
+                ),
+                matrix[i - 1][j - 1] + cost,  // substitution
+            );
+        }
+    }
+
+    matrix[a_len][b_len]
+}
+
+/// Find similar words from the record list for a query.
+/// For each token in the query, collects words that either:
+/// - start with the first 3 characters of the token (prefix match), OR
+/// - have a Levenshtein distance <= 2 from the token
+/// Returns up to `max` deduplicated suggestions in alphabetical order.
+pub fn suggest<'a>(records: &'a [WordRecord], query: &str, max: usize) -> Vec<&'a str> {
+    let tokens = tokenize(query);
+
+    let mut suggestions = BTreeSet::new();
+
+    for token in tokens {
+        if token.is_empty() {
+            continue;
+        }
+
+        let prefix = if token.len() >= 3 {
+            &token[..3]
+        } else {
+            &token
+        };
+
+        for record in records {
+            let word_lower = record.word.to_lowercase();
+
+            // Prefix match: first 3 chars (or less if token is short)
+            if word_lower.starts_with(prefix) {
+                suggestions.insert(record.word.as_str());
+                if suggestions.len() >= max {
+                    break;
+                }
+            }
+            // Levenshtein distance match
+            else if levenshtein_distance(&word_lower, &token) <= 2 {
+                suggestions.insert(record.word.as_str());
+                if suggestions.len() >= max {
+                    break;
+                }
+            }
+        }
+
+        if suggestions.len() >= max {
+            break;
+        }
+    }
+
+    suggestions.into_iter().take(max).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_levenshtein_distance_identical() {
+        assert_eq!(levenshtein_distance("abc", "abc"), 0);
+    }
+
+    #[test]
+    fn test_levenshtein_distance_empty() {
+        assert_eq!(levenshtein_distance("", "abc"), 3);
+        assert_eq!(levenshtein_distance("abc", ""), 3);
+        assert_eq!(levenshtein_distance("", ""), 0);
+    }
+
+    #[test]
+    fn test_levenshtein_distance_one_substitution() {
+        assert_eq!(levenshtein_distance("abc", "adc"), 1);
+    }
+
+    #[test]
+    fn test_levenshtein_distance_one_deletion() {
+        assert_eq!(levenshtein_distance("abcd", "acd"), 1);
+    }
+
+    #[test]
+    fn test_levenshtein_distance_one_insertion() {
+        assert_eq!(levenshtein_distance("abd", "abcd"), 1);
+    }
+
+    #[test]
+    fn test_levenshtein_distance_multiple_edits() {
+        assert_eq!(levenshtein_distance("kitten", "sitting"), 3);
+    }
+
+    #[test]
+    fn test_suggest_prefix_match() {
+        let records = vec![
+            WordRecord {
+                id: "test1".to_string(),
+                word: "zeus".to_string(),
+                word_class: Some("noun".to_string()),
+                language: Some("grc".to_string()),
+                system: Some("test".to_string()),
+                tags: None,
+                seed_weight: 1.0,
+                source: None,
+                etymology: None,
+                origin_lang: None,
+            },
+            WordRecord {
+                id: "test2".to_string(),
+                word: "hera".to_string(),
+                word_class: Some("noun".to_string()),
+                language: Some("grc".to_string()),
+                system: Some("test".to_string()),
+                tags: None,
+                seed_weight: 1.0,
+                source: None,
+                etymology: None,
+                origin_lang: None,
+            },
+        ];
+
+        let result = suggest(&records, "zeu", 10);
+        assert!(result.contains(&"zeus"), "should suggest zeus for prefix 'zeu'");
+    }
+
+    #[test]
+    fn test_suggest_levenshtein_distance() {
+        let records = vec![
+            WordRecord {
+                id: "test1".to_string(),
+                word: "zeus".to_string(),
+                word_class: Some("noun".to_string()),
+                language: Some("grc".to_string()),
+                system: Some("test".to_string()),
+                tags: None,
+                seed_weight: 1.0,
+                source: None,
+                etymology: None,
+                origin_lang: None,
+            },
+        ];
+
+        let result = suggest(&records, "zeuss", 10); // 1 extra char
+        assert!(result.contains(&"zeus"), "should suggest zeus for 'zeuss' within distance 2");
+    }
+
+    #[test]
+    fn test_suggest_deduplication() {
+        let records = vec![
+            WordRecord {
+                id: "test1".to_string(),
+                word: "zeus".to_string(),
+                word_class: Some("noun".to_string()),
+                language: Some("grc".to_string()),
+                system: Some("test".to_string()),
+                tags: None,
+                seed_weight: 1.0,
+                source: None,
+                etymology: None,
+                origin_lang: None,
+            },
+            WordRecord {
+                id: "test2".to_string(),
+                word: "apollo".to_string(),
+                word_class: Some("noun".to_string()),
+                language: Some("grc".to_string()),
+                system: Some("test".to_string()),
+                tags: None,
+                seed_weight: 1.0,
+                source: None,
+                etymology: None,
+                origin_lang: None,
+            },
+        ];
+
+        let result = suggest(&records, "zeu apo", 10);
+        assert_eq!(result.len(), 2);
+        assert!(result.contains(&"zeus"));
+        assert!(result.contains(&"apollo"));
+    }
+
+    #[test]
+    fn test_suggest_alphabetical_order() {
+        let records = vec![
+            WordRecord {
+                id: "test1".to_string(),
+                word: "beta".to_string(),
+                word_class: Some("noun".to_string()),
+                language: Some("grc".to_string()),
+                system: Some("test".to_string()),
+                tags: None,
+                seed_weight: 1.0,
+                source: None,
+                etymology: None,
+                origin_lang: None,
+            },
+            WordRecord {
+                id: "test2".to_string(),
+                word: "alpha".to_string(),
+                word_class: Some("noun".to_string()),
+                language: Some("grc".to_string()),
+                system: Some("test".to_string()),
+                tags: None,
+                seed_weight: 1.0,
+                source: None,
+                etymology: None,
+                origin_lang: None,
+            },
+        ];
+
+        let result = suggest(&records, "bet alp", 10);
+        // Should be in alphabetical order
+        assert_eq!(result, vec!["alpha", "beta"]);
+    }
 }

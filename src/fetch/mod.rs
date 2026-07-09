@@ -95,6 +95,13 @@ pub fn parse_wiktextract_line(line: &str, spec: &SourceSpec) -> anyhow::Result<O
         _ => None, // Missing pos
     };
 
+    // Check if the mapped word_class is in skip_classes
+    if let Some(ref wc) = word_class {
+        if spec.skip_classes.contains(wc) {
+            return Ok(None);
+        }
+    }
+
     // Extract glosses for tags
     let mut glosses = Vec::new();
     if let Some(Value::Array(senses)) = json.get("senses") {
@@ -389,6 +396,7 @@ mod tests {
             language: "de".to_string(),
             system: "test_system".to_string(),
             max_words: 100,
+            skip_classes: Vec::new(),
         }
     }
 
@@ -580,5 +588,40 @@ mod tests {
             .expect("failed to parse");
 
         assert_eq!(result, None, "word with > 30 chars should be filtered");
+    }
+
+    #[test]
+    fn test_parse_skip_classes_proper() {
+        let mut spec = make_spec();
+        spec.skip_classes = vec!["proper".to_string()];
+        let json_line = r#"{"word":"Maria","pos":"name","senses":[]}"#;
+
+        let result = parse_wiktextract_line(json_line, &spec)
+            .expect("failed to parse");
+
+        assert_eq!(result, None, "proper class should be filtered when in skip_classes");
+    }
+
+    #[test]
+    fn test_parse_skip_classes_noun() {
+        let mut spec = make_spec();
+        spec.skip_classes = vec!["noun".to_string()];
+        let json_line = r#"{"word":"Test","pos":"noun","senses":[]}"#;
+
+        let result = parse_wiktextract_line(json_line, &spec)
+            .expect("failed to parse");
+
+        assert_eq!(result, None, "noun class should be filtered when in skip_classes");
+    }
+
+    #[test]
+    fn test_parse_skip_classes_empty_allows_all() {
+        let spec = make_spec(); // skip_classes is empty by default
+        let json_line = r#"{"word":"Test","pos":"noun","senses":[]}"#;
+
+        let result = parse_wiktextract_line(json_line, &spec)
+            .expect("failed to parse");
+
+        assert!(result.is_some(), "empty skip_classes should allow all classes");
     }
 }
