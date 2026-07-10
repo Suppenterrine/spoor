@@ -1,0 +1,66 @@
+spoor benchmark  (2026-07-10_0331)
+----------------------------------------
+Total words: 91422
+
+## B01  find "Baum"
+Baumhaus — baum (“tree”) + haus (“house”) · System: wiktionary_de · Spur: baum (wort~), baum (etymologie), baum → tree (bruecke)
+Silvanus — from silva (“forest”) + -ānus (relational suffix). the name sīlās, from the early christian apostle, was latinized as silvānus by paul. doublet of sīl · System: wiktionary_la · Spur: baum → tree (bruecke)
+abietifolius — new latin; from abiēs (“fir tree”) + -i- + folium (“leaf”). · System: wiktionary_la · Spur: baum → tree (bruecke)
+
+## B02  find "Werkzeug für Wald und Baum"
+querquetum — quercus (“oak-tree”) + -ētum (“plantation or grove”) · System: wiktionary_la · Spur: wald → forest (bruecke), wald → woods (bruecke), wald → tree (bruecke)
+silvestris — etymology tree proto-indo-european *sel-der.? latin silva latin terrestris latin -estris latin silvestris from silva (“woods, forest”) + -estris. · System: wiktionary_la · Spur: wald → forest (bruecke), wald → woods (bruecke), wald → tree (bruecke)
+hū́lē — traditionally derived from a proto-indo-european *swel-, *sel- (“firewood, wood, beam”), and compared with latin silva (“forest”), english sill, latvian · System: wiktionary_grc · Spur: wald → forest (bruecke), wald → woods (bruecke), wald → tree (bruecke)
+
+## B03  find "CLI die Logs von verteilten Systemen synchronisiert"
+cala — from the plural form of ancient greek κᾶλον (kâlon, “wood, logs, timber”). · System: wiktionary_la · Spur: logs (etymologie), logs (glosse)
+Utopia — etymology tree ancient greek οὐ (ou) ancient greek τόπος (tópos) proto-indo-european *-h₂ proto-indo-european *-éh₂ proto-indo-european *-i-eh₂  · System: wiktionary_la · Spur: systemen (glosse)
+artemon — etymology tree ancient greek ἀρτάω (artáō) proto-indo-european *-mṓ ancient greek -μων (-mōn) ancient greek ἀρτέμων (artémōn)bor. latin  · System: wiktionary_la · Spur: systemen (glosse)
+
+## B04  find "Wasser Licht"
+amnis — from proto-indo-european *h₂ebʰ-n- (“river”), from the root *h₂ebʰ-, *h₂ep- (“water”). compare old irish aub (“river”), albanian amë (“ri · System: wiktionary_la · Spur: wasser → water (bruecke), wasser → waters (bruecke), wasser → river (bruecke), wasser → flow (bruecke)
+oceanus — etymology tree ancient greek ὠκεανός (ōkeanós) ancient greek ὠκεᾰνός (ōkeănós)bor. latin ōceanus borrowed from ancient greek ὠκεᾰν · System: wiktionary_la · Spur: wasser → water (bruecke), wasser → waters (bruecke), wasser → body (bruecke), wasser → river (bruecke)
+'ór — compare arabic أُوَار (ʔuwār) and akkadian 𒌓𒁕 (urrum). · System: wiktionary_he · Spur: licht → light (bruecke), licht → electromagnetic (bruecke), licht → radiation (bruecke), licht → visible (bruecke)
+
+## B05  find "sky thunder king"
+mónărkhos — derived from μόνος (mónos, “single, only”) + ἀρχός (arkhós, “ruler, leader”). · System: wiktionary_grc · Spur: king (glosse), king → monarch (bruecke), king → monarchy (bruecke)
+rá'am — System: wiktionary_he · Spur: thunder (glosse), thunder → loud (bruecke), thunder → sound (bruecke)
+prince — from middle english prince, from anglo-norman prince, from latin prīnceps (“first head”), from prīmus (“first”) + capiō (“seize, take”). cognate  · System: wiktionary_en · Spur: king (glosse), king → male (bruecke), king → monarch (bruecke), king → monarchy (bruecke)
+
+## B06  find "track meaning to its origin"
+grápsimo — γράφω (gráfo, “to write”) + -ιμο (-imo) · System: wiktionary_el · Spur: meaning (glosse), meaning → expressing (bruecke), meaning → some (bruecke), meaning → meaningful (bruecke)
+grafí — from ancient greek γραφή (graphḗ). · System: wiktionary_el · Spur: meaning (glosse), meaning → expressing (bruecke), meaning → some (bruecke), meaning → meaningful (bruecke)
+etimológya — ultimately from ancient greek ἐτυμολογία (etumología), from ἔτυμον (étumon, “true sense”) and -λογία (-logía, “study of”), the · System: wiktionary_he · Spur: meaning (glosse), origin (glosse), meaning → meaningful (bruecke)
+
+## B07  find "audio dispatch senden kommunikation genuss spiel musik sonne"
+band — derived from middle english band, from old french bande, from old occitan banda (“regiment of troops”), perhaps from frankish *bend, from proto-germanic *ba · System: wiktionary_en · Spur: spiel → instance (bruecke), spiel → playing (bruecke), musik → music (bruecke), musik → musical (bruecke)
+chorda — etymology tree ancient greek χορδή (khordḗ)bor. latin chorda borrowed from ancient greek χορδή (khordḗ, “guts, tripe”). · System: wiktionary_la · Spur: genuss → food (bruecke), musik → music (bruecke), musik → musical (bruecke)
+dĭoxeiôn — δῐ(ὰ) (dĭ(à), preposition) + ὀξειῶν (oxeiôn, genitive plural feminine) · System: wiktionary_grc · Spur: kommunikation → between (bruecke), musik → music (bruecke), musik → musical (bruecke)
+
+## B08  find "schwarz logs lesen forensisch skalpell schneiden lupe suchen präzise"
+darkness — from middle english derknesse, from old english deorcnes; equivalent to dark + -ness. · System: wiktionary_en · Spur: schwarz → black (bruecke), schwarz → reflecting (bruecke), schwarz → little (bruecke), schwarz → light (bruecke)
+mishpát — the modern mathematical sense of "theorem" seems like a semantic loan from german satz, appended to the grammatical sense of "sentence", which dates back to med · System: wiktionary_he · Spur: forensisch → legal (bruecke), forensisch → courts (bruecke), forensisch → trials (bruecke)
+iatrodikastís — learnedly from ιατρ(ός) (iatr(ós)) + -ο- (-o-) + δικαστής (dikastís), a calque of french médecin légiste or german gerichtsarzt. · System: wiktionary_el · Spur: forensisch → forensic (bruecke), forensisch → use (bruecke), forensisch → science (bruecke)
+
+## B09  find "weisheit erkenntnis lehre"
+perfinitio — probably per- (“completely”) + fīnītiō (“a determining”, “an assigning”). · System: wiktionary_la · Spur: erkenntnis → judgment (bruecke), erkenntnis → decision (bruecke), erkenntnis → ruling (bruecke)
+crimen — from proto-italic *kreimən, from proto-indo-european *kréymn̥, from *krey- (“sieve”) + *-mn̥, equivalent to cernō (“sieve”) + -men (noun-forming su · System: wiktionary_la · Spur: erkenntnis → judgment (bruecke), erkenntnis → decision (bruecke)
+iudicium — etymology tree latin iūdicō proto-indo-european *-yós proto-italic *-ios old latin -ios latin -ius latin -ium latin iūdicium from iūdicō (“to judge, dec · System: wiktionary_la · Spur: erkenntnis → judgment (bruecke), erkenntnis → decision (bruecke)
+
+## B10  find "feuer schmiede handwerk"
+fabrica — etymology tree latin faber proto-indo-european *-ikos proto-italic *-ikos latin -icus latin fabrica from faber (“craftsman, smith”) + -icus. originally this · System: wiktionary_la · Spur: schmiede → smithy (bruecke), schmiede → workshop (bruecke), schmiede → smith (bruecke), handwerk → trade (bruecke)
+sidirourgeío — System: wiktionary_el · Spur: schmiede → forge (bruecke), schmiede → smithy (bruecke), schmiede → workshop (bruecke), schmiede → smith (bruecke)
+káfsi — System: wiktionary_el · Spur: feuer → chemical (bruecke), feuer → process (bruecke), feuer → burning (bruecke)
+
+## G01  gen --seed 42 --count 5
+Wandering γιάρδα
+Mystisch femur
+The Iron Haube of the ανόμοιος Serenity
+טופוגרפיה
+Mystisch כרוכית
+
+## G02  gen --seed 42 --count 3 --systems nature
+Crimson schatten of Dawn
+wasser
+The Crimson schatten
+

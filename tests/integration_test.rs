@@ -44,6 +44,7 @@ fn csv_import_db_insert_and_deterministic_generate() {
             separator: " ".into(),
             fillword: "of".into(),
         },
+        output: spoor::config::OutputConfig::default(),
         db: spoor::config::DbConfig {
             path: db_path,
         },
@@ -80,6 +81,7 @@ fn template_determinism() {
             separator: " ".into(),
             fillword: "of".into(),
         },
+        output: spoor::config::OutputConfig::default(),
         db: spoor::config::DbConfig {
             path: ":memory:".into(),
         },
@@ -119,6 +121,7 @@ fn template_empty_slot_leaves_no_stray_whitespace() {
             separator: " ".into(),
             fillword: "of".into(),
         },
+        output: spoor::config::OutputConfig::default(),
         db: spoor::config::DbConfig {
             path: ":memory:".into(),
         },
@@ -153,6 +156,7 @@ fn no_word_corruption() {
             separator: " ".into(),
             fillword: "of".into(),
         },
+        output: spoor::config::OutputConfig::default(),
         db: spoor::config::DbConfig {
             path: ":memory:".into(),
         },
@@ -186,6 +190,7 @@ fn exhaustion_safety() {
             separator: " ".into(),
             fillword: "of".into(),
         },
+        output: spoor::config::OutputConfig::default(),
         db: spoor::config::DbConfig {
             path: ":memory:".into(),
         },

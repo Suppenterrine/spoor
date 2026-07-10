@@ -9,3 +9,12 @@ fillword = "of"
 
 [db]
 path = "data/words.db"
+
+# Schrift der find-Ausgabe: latin (Standard) | native | both
+# latin: nicht-lateinische Woerter erscheinen romanisiert (kaikki-Romanisierung,
+#        sonst regelbasierte Transliteration); die Originalform bleibt im
+#        TTY-Block sichtbar.
+# count: Standard-Anzahl der find-Ergebnisse, wenn --count fehlt.
+[output]
+script = "latin"
+count = 9

@@ -7,12 +7,15 @@ use anyhow::Context;
 pub enum Backend {
     #[serde(rename = "wiktextract-jsonl")]
     WiktextractJsonl,
+    /// Whole-body JSON array of mythological figures (greek-mythology-data format)
+    #[serde(rename = "mythology-json")]
+    MythologyJson,
 }
 
 impl Backend {
     /// Return all supported backend type names for error messaging.
     fn supported() -> &'static [&'static str] {
-        &["wiktextract-jsonl"]
+        &["wiktextract-jsonl", "mythology-json"]
     }
 }
 
@@ -73,33 +76,25 @@ pub struct SourcesConfig {
     pub query_expansion: Option<QueryExpansionSpec>,
 }
 
-/// Load and parse sources.yaml file.
-/// Returns an error with context-rich message if backend is unknown.
-pub fn load_sources(path: impl AsRef<Path>) -> anyhow::Result<SourcesConfig> {
-    let path = path.as_ref();
-    let content = std::fs::read_to_string(path)
-        .with_context(|| format!("failed to read sources file at {:?}", path))?;
+/// The repository's sources.yaml, embedded at compile time so 'spoor db fetch'
+/// and '--online' work from any working directory, not just inside the repo
+/// checkout (mirrors the embedded seed words in SEED_WORDS_CSV).
+pub const EMBEDDED_SOURCES_YAML: &str = include_str!("../sources.yaml");
 
-    let config: SourcesConfig = serde_yaml::from_str(&content)
+/// Parse sources.yaml content already read into memory.
+/// Returns an error with context-rich message if backend is unknown.
+fn parse_sources(content: &str) -> anyhow::Result<SourcesConfig> {
+    let config: SourcesConfig = serde_yaml::from_str(content)
         .with_context(|| {
             format!(
-                "failed to parse YAML from {:?}. Ensure 'backend' is one of: {}",
-                path,
+                "failed to parse sources YAML. Ensure 'backend' is one of: {}",
                 Backend::supported().join(", ")
             )
         })?;
 
-    // Validate all backends are recognized
-    for source in &config.sources {
-        if source.backend != Backend::WiktextractJsonl {
-            anyhow::bail!(
-                "unknown backend '{}' in source '{}'. Supported backends: {}",
-                format!("{:?}", source.backend).to_lowercase(),
-                source.id,
-                Backend::supported().join(", ")
-            );
-        }
-    }
+    // Backend values are validated by serde at parse time (unknown values
+    // fail deserialization with the context message above); every enum
+    // variant has an implementation in fetch::fetch_all.
 
     // Validate query_expansion backend if present
     if let Some(ref expansion) = config.query_expansion {
@@ -112,6 +107,26 @@ pub fn load_sources(path: impl AsRef<Path>) -> anyhow::Result<SourcesConfig> {
     }
 
     Ok(config)
+}
+
+/// Load and parse sources.yaml from an explicit path.
+pub fn load_sources(path: impl AsRef<Path>) -> anyhow::Result<SourcesConfig> {
+    let path = path.as_ref();
+    let content = std::fs::read_to_string(path)
+        .with_context(|| format!("failed to read sources file at {:?}", path))?;
+    parse_sources(&content)
+}
+
+/// Load sources.yaml, preferring a local file at `path` when present, and
+/// falling back to the copy embedded in the binary otherwise. This is what
+/// lets 'spoor' find its default sources regardless of the current working
+/// directory - only an explicit, unreadable custom path is treated as an error.
+pub fn load_sources_or_embedded(path: impl AsRef<Path>) -> anyhow::Result<SourcesConfig> {
+    let path = path.as_ref();
+    match std::fs::read_to_string(path) {
+        Ok(content) => parse_sources(&content),
+        Err(_) => parse_sources(EMBEDDED_SOURCES_YAML),
+    }
 }
 
 #[cfg(test)]

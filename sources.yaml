@@ -8,50 +8,121 @@
 # Optional: 'skip_classes' filtert Wortklassen waehrend des Parsens.
 # Beispiel: skip_classes: [proper] ignoriert alle Eigennamen.
 # Gültige Werte: proper, noun, adj
+#
+# Der Parser verwirft ausserdem Eintraege ohne brauchbare Glosse
+# (Flexionsformen, Schreibvarianten, Nachnamen, Abkuerzungen) — die Glossen
+# sind das semantische Rueckgrat von 'spoor find'. max_words zaehlt nur
+# akzeptierte Woerter; der Download bricht weiterhin frueh ab.
 sources:
   - id: kaikki-de
     backend: wiktextract-jsonl
     url: https://kaikki.org/dictionary/German/kaikki.org-dictionary-German.jsonl
     language: de
     system: wiktionary_de
-    max_words: 500
+    max_words: 20000
   - id: kaikki-en
     backend: wiktextract-jsonl
     url: https://kaikki.org/dictionary/English/kaikki.org-dictionary-English.jsonl
     language: en
     system: wiktionary_en
-    max_words: 500
+    max_words: 20000
   - id: kaikki-la
     backend: wiktextract-jsonl
     url: https://kaikki.org/dictionary/Latin/kaikki.org-dictionary-Latin.jsonl
     language: la
     system: wiktionary_la
-    max_words: 500
+    max_words: 20000
   - id: kaikki-el
     backend: wiktextract-jsonl
     url: https://kaikki.org/dictionary/Greek/kaikki.org-dictionary-Greek.jsonl
     language: el
     system: wiktionary_el
-    max_words: 500
+    max_words: 20000
   - id: kaikki-grc
     backend: wiktextract-jsonl
     url: https://kaikki.org/dictionary/Ancient%20Greek/kaikki.org-dictionary-AncientGreek.jsonl
     language: grc
     system: wiktionary_grc
-    max_words: 500
+    max_words: 20000
     skip_classes: [proper]
   - id: kaikki-he
     backend: wiktextract-jsonl
     url: https://kaikki.org/dictionary/Hebrew/kaikki.org-dictionary-Hebrew.jsonl
     language: he
     system: wiktionary_he
-    max_words: 500
+    max_words: 20000
     skip_classes: [proper]
+  # Alte Sprachen mit grossen Bedeutungsraeumen (alle aus dem englischen
+  # Wiktionary -> englische Glossen, dieselbe Konzeptbruecke)
+  - id: kaikki-sa
+    backend: wiktextract-jsonl
+    url: https://kaikki.org/dictionary/Sanskrit/kaikki.org-dictionary-Sanskrit.jsonl
+    language: sa
+    system: wiktionary_sa
+    max_words: 20000
+  - id: kaikki-non
+    backend: wiktextract-jsonl
+    url: https://kaikki.org/dictionary/Old%20Norse/kaikki.org-dictionary-OldNorse.jsonl
+    language: non
+    system: wiktionary_non
+    max_words: 20000
+  - id: kaikki-got
+    backend: wiktextract-jsonl
+    url: https://kaikki.org/dictionary/Gothic/kaikki.org-dictionary-Gothic.jsonl
+    language: got
+    system: wiktionary_got
+    max_words: 20000
+  - id: kaikki-egy
+    backend: wiktextract-jsonl
+    url: https://kaikki.org/dictionary/Egyptian/kaikki.org-dictionary-Egyptian.jsonl
+    language: egy
+    system: wiktionary_egy
+    max_words: 20000
+  - id: kaikki-akk
+    backend: wiktextract-jsonl
+    url: https://kaikki.org/dictionary/Akkadian/kaikki.org-dictionary-Akkadian.jsonl
+    language: akk
+    system: wiktionary_akk
+    max_words: 20000
+  - id: kaikki-sux
+    backend: wiktextract-jsonl
+    url: https://kaikki.org/dictionary/Sumerian/kaikki.org-dictionary-Sumerian.jsonl
+    language: sux
+    system: wiktionary_sux
+    max_words: 20000
+  - id: kaikki-nci
+    backend: wiktextract-jsonl
+    url: https://kaikki.org/dictionary/Classical%20Nahuatl/kaikki.org-dictionary-ClassicalNahuatl.jsonl
+    language: nci
+    system: wiktionary_nci
+    max_words: 20000
+  - id: kaikki-yua
+    backend: wiktextract-jsonl
+    url: https://kaikki.org/dictionary/Yucatec%20Maya/kaikki.org-dictionary-YucatecMaya.jsonl
+    language: yua
+    system: wiktionary_yua
+    max_words: 20000
+  - id: kaikki-qu
+    backend: wiktextract-jsonl
+    url: https://kaikki.org/dictionary/Quechua/kaikki.org-dictionary-Quechua.jsonl
+    language: qu
+    system: wiktionary_qu
+    max_words: 20000
+  # Mythologie: griechisch-roemische Goetter/Kreaturen (Namen in
+  # lateinischer Schrift, Beschreibung + Kategorie als Glossen)
+  - id: myth-greek
+    backend: mythology-json
+    url: https://raw.githubusercontent.com/kamiranoff/greek-mythology-data/master/data/all.json
+    language: grc
+    system: myth_greek
+    max_words: 2000
 
 # Optionale semantische Query-Expansion fuer 'spoor find --online'.
 # Auch hier gilt: NUR fuer die folgenden backend-Typen existiert eine
 # Implementierung im Code - andere Werte schlagen beim Laden fehl:
-#   - datamuse-ml   (api.datamuse.com; liefert bedeutungsaehnliche Woerter zur Beschreibung)
+#   - datamuse-ml   (api.datamuse.com; zwei Passes: ml= bedeutungsaehnliche
+#                    Woerter zur ganzen Beschreibung, plus rel_trg=
+#                    Assoziations-Trigger pro Inhaltstoken)
 query_expansion:
   backend: datamuse-ml
   url: https://api.datamuse.com/words

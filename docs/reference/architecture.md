@@ -102,7 +102,8 @@ src/
 │   ├── mod.rs           # Öffentliche Exports
 │   ├── rng.rs           # SeededRng (ChaCha8-Wrapper)
 │   └── template.rs      # Template-Parser und Generator
-├── lookup/mod.rs        # Reverse-Lookup (Keyword-Suche)
+├── lookup/mod.rs        # Reverse-Lookup (Konzeptbrücke + IDF-Scoring)
+├── translit.rs          # Lateinische Transliteration (Fallback) + Diakritika-Folding
 └── csv_import           # (intern in cli.rs)
 ```
 
@@ -149,28 +150,34 @@ ImportReport { imported: usize, unknown_class: usize }
     ↓
 words.db (aktualisiert)
 
-### Lookup-Pipeline
+### Lookup-Pipeline (zweistufig, semantisch)
 
 ```
-Query: "sky thunder king", optional Systems: ["nature"]
+Query: "Baum", optional Systems: ["wiktionary_la"]
     ↓
-lookup::tokenize(query) → ["sky", "thunder", "king"]
+lookup::tokenize(query) → ["baum"]   (Stoppwörter-Filter DE/EN)
     ↓
-Stoppwörter-Filter (z. B. "der", "die", "und")
+Stufe A — build_concepts (Konzeptbrücke):
+  - jeder Token ist ein Konzept (Gewicht 1.0)
+  - Token nennt ein Wort im Brücken-Bestand (ganze DB, auch bei --systems)?
+    → dessen englische Glossen-Tokens werden Konzepte (0.7, max. 8/Token)
+      "baum" → de/Baum (Glosse "tree") → Konzept "tree"
+  - Datamuse-Kandidaten (--online) → Konzepte (0.6)
     ↓
-db.all_records(systems) [in SQL]:
-  - Falls systems gefiltert: WHERE system IN (?, ?, ...)
-  - Streaming Ergebnis
+db.all_records(systems) [WHERE system IN, SQL] → Vec<WordRecord>
     ↓
-Vec<WordRecord>
-    ↓
-lookup::rank(records, tokens) → Vec<Match> (nach Score sortiert)
+Stufe B — rank_semantic:
+  - IDF über alle Glossen-Tokens der Kandidaten (gedeckelt)
+  - pro Record: Konzept × stärkstes Feld (Glosse mit IDF ODER Wort),
+    plus Wort-Präfix/System/Etymologie für direkte Tokens
+  - Anti-Echo: word == Query-Token → Record raus (außer --allow-echo)
+  - score × seed_weight × Herkunfts-Faktor (la/grc/he 1.3, el 1.15)
     ↓
 Filter: score > 0
     ↓
-Sort: score DESC → seed_weight DESC → word ASC
+Sort: score DESC → seed_weight DESC → word ASC (deterministisch)
     ↓
-lookup::explain(match) → "word — etymology (lang) · System: sys · Treffer: ..."
+lookup::explain(match) → "word — etymology (lang) · System: sys · Treffer: baum → tree (bruecke)"
     ↓
 Ausgabe (text oder json)
 ```
@@ -383,53 +390,76 @@ pub fn generate_unique(
 
 ---
 
-### 5. **lookup/mod.rs** — Reverse-Lookup (Keyword-Scoring)
+### 5. **lookup/mod.rs** — Reverse-Lookup (Konzeptbrücke + IDF-Scoring)
 
-Implementiert die Suche nach Wörtern zu einer Nutzfallbeschreibung. Nutzt einfaches, aber effektives Keyword-Scoring.
+Implementiert die zweistufige semantische Suche nach Wörtern zu einer
+Nutzfallbeschreibung. Kern-Idee: Alle kaikki-Quellen stammen aus dem
+englischen Wiktionary — ihre **englischen Glossen sind eine deterministische
+Interlingua**, über die Query-Sprache und Zielsprachen verbunden werden.
 
 **Datentypen**:
 ```rust
 pub struct Match {
     pub record: WordRecord,
     pub score: f64,
-    pub matched: Vec<String>,  // z. B. ["sky (tag)", "thunder (tag)"]
+    pub matched: Vec<String>,  // Pfade, z. B. ["baum → tree (bruecke)"]
 }
+
+struct Concept { term, weight, via: Option<String>, online: bool }
+    // via = Brückenwort für den Pfad in der Ausgabe
 
 pub fn tokenize(query: &str) -> Vec<String>
     // Lowercase, split on non-alphanumeric, filter stopwords, dedup
 
-pub fn rank(records: &[WordRecord], query: &str) -> Vec<Match>
-    // Score all records, filter > 0, sort deterministically
+pub fn rank_semantic(records, bridge_records, query, candidates, allow_echo) -> Vec<Match>
+    // Vollständiges Ranking; bridge_records = Vokabular für Stufe A
+    // (bei --systems die GANZE Datenbank, nicht der Filter)
+
+pub fn rank(records, query) / rank_with_candidates(records, query, candidates)
+    // Wrapper: records fungieren selbst als Brücke, allow_echo = false
 
 pub fn explain(m: &Match) -> String
     // German format: "word — etymology (lang) · System: sys · Treffer: ..."
 ```
 
-**Scoring-Pipeline**:
+**Stufe A — Konzepte (build_concepts)**:
+1. Jeder Query-Token → Konzept (Gewicht 1.0)
+2. Token nennt ein Wort im Brücken-Bestand → dessen Glossen-Tokens werden
+   Konzepte (Gewicht 0.7, max. 8 pro Token, `via` merkt sich den Pfad)
+3. Datamuse-Kandidaten → Konzepte (Gewicht 0.6, Label `semantisch`)
 
-1. **Tokenisierung**: Query in Tokens splitten, Stopwörter filtern (DE/EN: "der", "die", "das", "ein", "und", "oder", ...)
-2. **Scoring pro Token und Feld**:
-   - Wort exakt: 5.0
-   - Wort Substring (≥3): 2.0
-   - Tag exakt: 3.0
-   - Tag Substring (≥3): 1.5
-   - System (exakt/Substring): 2.0
-   - Etymologie (Substring, ≥3): 1.0
-3. **Ein Token wertet jedes Feld max. einmal** (nur höchste Punktzahl)
-4. **Multiplikation mit seed_weight**: `score *= record.seed_weight`
-5. **Deterministische Sortierung**:
-   - Score DESC (höher besser)
-   - seed_weight DESC (höher besser)
-   - word ASC (alphabetisch für Tie-Break)
+Glossen-Tokens durchlaufen `tokenize` plus `GLOSS_NOISE`-Filter
+(Wörterbuch-Füllwörter wie "one", "person", "state") und Mindestlänge 3.
+
+**Stufe B — Scoring (score_record_semantic)**:
+- **Ein Konzept = ein Beleg**: pro Record zählt nur das stärkste Feld —
+  Glossen-Treffer `1.2 × Gewicht × IDF` ODER Wort-Treffer `4.0 × Gewicht`
+  (Wort-Treffer nur für Brücken-/Online-Konzepte; das direkte Token-Wort-Paar
+  ist das Echo)
+- IDF: `1 + ln(N/df)`, geclamped auf [1.0, 6.0] — seltene Glossen-Tokens
+  zählen mehr, Einzelstücke dominieren nicht
+- Termvergleich mit Plural-Toleranz (trailing-s) und bidirektionalem Präfix (≥5)
+- Direkte Tokens zusätzlich: Wort-Präfix 1.5, System 2.0, Etymologie-Substring 1.0
+
+**Anti-Echo**: `word == Query-Token` → Record wird übersprungen. Der North
+Star will Assoziation, nicht das Anfragewort zurück. `--allow-echo` stellt
+das alte Verhalten her (+5.0 für den Exakttreffer).
+
+**Herkunfts-Bonus**: `score × seed_weight × origin_factor` —
+la/grc/he/non/ang/goh ×1.3, el ×1.15, sonst ×1.0.
+
+**Deterministische Sortierung**: Score DESC → seed_weight DESC → word ASC.
+
+**Transliteration im Ranking**: Wort-Vergleiche (Konzept-Wort-Treffer,
+Echo-Check) laufen zusätzlich gegen die Diakritika-gefaltete Latin-Form
+(`translit`-Spalte), sodass "logos" das grc-Wort λόγος (lógos) trifft.
 
 **Beispiel**:
-- Query: "sky thunder king"
-- Tokens: ["sky", "thunder", "king"] (keine Stopwörter)
-- Record "zeus": tags="sky,thunder,king", seed_weight=1.2
-  - Token "sky": Tag exakt → 3.0
-  - Token "thunder": Tag exakt → 3.0
-  - Token "king": Tag exakt → 3.0
-  - Total: 9.0 × 1.2 = 10.8
+- Query: "Baum"
+- Stufe A: Token "baum"; de/Baum (Glosse "tree") → Konzept "tree" (0.7, via baum)
+- Stufe B: la/arboretum (Glosse "...tree...") → 1.2 × 0.7 × idf("tree") × 1.3 (la)
+- de/Baum selbst: Echo → gefiltert
+- Ausgabe: `arboretum — ... · Treffer: baum → tree (bruecke)`
 
 ---
 
@@ -586,7 +616,11 @@ Response::into_reader()  [impl Read]
 BufReader::lines()
     ↓ pro Zeile: parse_wiktextract_line()
     - Ok(Some(rec))  → akzeptiert, in Batch (100 Stück) sammeln
-    - Ok(None)       → übersprungen (falscher word_class, Multiword, ...)
+    - Ok(None)       → übersprungen (falscher word_class, Multiword,
+                       KEINE brauchbare Glosse: Flexionsformen (form_of/alt_of,
+                       Junk-Sense-Tags), Buchhaltungs-Glossen wie "surname",
+                       "alternative form of", "plural of" — der Bestand soll
+                       Bedeutungsträger enthalten, keine Wörterbuch-Verweise)
     - Err(_)         → übersprungen (kaputte JSON-Zeile bricht den Fetch NICHT ab)
     ↓ sobald accepted == spec.max_words: SOFORT abbrechen (Rest der Datei wird nie gelesen)
     ↓ Batch (voll oder letzter Rest) → mpsc-Channel

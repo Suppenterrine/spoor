@@ -5,6 +5,7 @@ pub mod fetch;
 pub mod generator;
 pub mod lookup;
 pub mod sources;
+pub mod translit;
 
 pub use config::Config;
 pub use db::{Db, WordRecord};

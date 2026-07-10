@@ -36,6 +36,41 @@ impl Default for GeneratorConfig {
     }
 }
 
+/// Which script find results are displayed in. Latin is the default: a CLI
+/// result should be typeable; the native form stays visible as annotation.
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum Script {
+    #[default]
+    Latin,
+    Native,
+    Both,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct OutputConfig {
+    #[serde(default)]
+    pub script: Script,
+    /// Default number of find results when --count is not given.
+    /// Built-in default is 1 (North Star: ein Wort vor fünf); the repo
+    /// config raises it for exploration.
+    #[serde(default = "default_find_count")]
+    pub count: usize,
+}
+
+fn default_find_count() -> usize {
+    1
+}
+
+impl Default for OutputConfig {
+    fn default() -> Self {
+        Self {
+            script: Script::default(),
+            count: default_find_count(),
+        }
+    }
+}
+
 #[derive(Debug, Deserialize, Clone)]
 pub struct DbConfig {
     #[serde(default = "default_db_path")]
@@ -56,6 +91,8 @@ pub struct Config {
     pub generator: GeneratorConfig,
     #[serde(default)]
     pub db: DbConfig,
+    #[serde(default)]
+    pub output: OutputConfig,
 }
 
 impl Default for Config {
@@ -63,6 +100,7 @@ impl Default for Config {
         Self {
             generator: GeneratorConfig::default(),
             db: DbConfig::default(),
+            output: OutputConfig::default(),
         }
     }
 }

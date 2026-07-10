@@ -237,7 +237,13 @@ JSON-Format enthält den Seed und ein Array von generierten Namen.
 
 ## find — Wort für Nutzfallbeschreibung suchen
 
-Findet ein oder mehrere Wörter, die zu einer Beschreibung passen. Nutzt Relevanz-Scoring nach Wort, Tags, System und Etymologie.
+Findet ein oder mehrere Wörter, die zu einer Beschreibung passen. Nutzt eine
+zweistufige semantische Suche: Query-Tokens werden über die **Konzeptbrücke**
+(englische Glossen des Bestands) in Konzepte übersetzt und diese IDF-gewichtet
+gegen Glossen, System und Etymologie aller Wörter gewertet. Ein Wort, das mit
+einem Query-Token identisch ist, wird als **Echo** gefiltert (`--allow-echo`
+hebt das auf); Wörter aus Ursprungssprachen (la, grc, he, …) erhalten einen
+Bonus.
 
 ### Syntax
 
@@ -255,55 +261,103 @@ spoor find <QUERY> [OPTIONS]
 
 | Option | Wert | Beschreibung |
 |--------|------|-------------|
-| `--count <COUNT>` | usize | Anzahl der gesuchten Wörter. Standardwert: 1 |
+| `--count <COUNT>` | usize | Anzahl der gesuchten Wörter. Standard: `[output] count` aus der Config, sonst 1. |
 | `--systems <SYSTEMS>` | String | Komma-getrennte Liste von Systemen zum Filtern (z. B. `nature,myth_greek`). |
 | `--explain` | flag | Zeigt detaillierte Erklärungen (Etymologie, Herkunftssprache, System, Treffer). |
 | `--format <FORMAT>` | text \| json | Ausgabeformat. Standardwert: `text` |
-| `--online` | flag | Aktiviert semantische Query-Expansion über die Datamuse API (erfordert `query_expansion` Block in `sources.yaml`). |
+| `--online` | flag | **Erzwingt** Online-Expansion (Fehler, wenn nicht verfügbar). Online ist bereits der Standard, wenn das Netz erreichbar ist. |
+| `--offline` | flag | Nur lokale Suche, kein Netzzugriff. |
+| `--allow-echo` | flag | Liefert auch Wörter, die mit einem Query-Token identisch sind (standardmäßig als Echo gefiltert). |
+| `--register <REG>` | String | Nur Wörter mit diesem Register-Marker, z. B. `poetic`, `figurative`, `literary`, `archaic`. |
 | `--config <CONFIG>` | Path | Konfigurationsdatei-Pfad. Standardwert: `config.toml` |
+
+**Online ist Standard:** Vor der Suche prüft ein schneller Konnektivitätscheck
+(~1 s Timeout), ob die Datamuse-API erreichbar ist. Wenn ja, läuft die
+semantische Expansion automatisch; wenn nein (oder ohne `query_expansion` in
+`sources.yaml`), fällt spoor still auf die lokale Suche zurück. Die Quelle
+wird immer ausgewiesen: als gedimmte `Quelle …`-Zeile im TTY, als
+stderr-Hinweis in Pipes, als `mode`-Feld im JSON.
 
 ### Ausgabeformat nach Kontext
 
 Die Ausgabe wechselt automatisch je nach Kontext:
 
-**Im Terminal (TTY):**
-- Standardmäßig wird ein reichhaltiger Block pro Treffer angezeigt (farbig formatiert, mit Etymologie, System, Tags und Treffern)
-- Mit `--explain` wird dasselbe Format verwendet (es ist der Erklärformat)
+**Im Terminal (TTY):** Ein kompakter Block pro Treffer, klare Hierarchie —
+Wort fett/cyan, Bedeutung daneben, Details eingerückt und gedimmt:
+
+```
+sophia (σοφία) — wisdom, insight  [grc · wiktionary_grc]
+  Spur   weisheit → wisdom (bruecke) · sky (glosse)
+  Wurzel from ancient greek σοφία ... (grc)          ← nur mit --explain
+```
+
+- Kopfzeile: Wort (lateinische Form, Original in Klammern wenn abweichend),
+  Bedeutung (erste Glossen, gekürzt), `[Sprache · System]`
+- `Spur`: der Assoziationspfad (dedupliziert, max. 4 Einträge, `+n` Rest)
+- `Wurzel`: Etymologie mit Ursprungssprache — nur mit `--explain`
+- Fehlende Felder werden weggelassen (keine `?`-Platzhalter)
 
 **Weitergeleitet (Pipe, Redirect):**
-- Ein Wort pro Zeile (Skripte brechen nicht)
-- Mit `--explain` wird eine kompakte Erklärungszeile pro Wort gezeigt
+- Ein Wort pro Zeile in lateinischer Schrift (Skripte brechen nicht)
+- Mit `--explain` eine kompakte Erklärungszeile pro Wort
+  (`wort — etymologie (lang) · System: sys · Spur: ...`)
 
-**Beispiel TTY-Ausgabe:**
-```
-zeus (bold, cyan)
-  griech. Zeus, idg. *dyeus 'Himmel, Tag' (grc) · wiktionary_greek · Treffer: sky (tag) · thunder (tag) · king (tag)
-```
+**Schrift** (`[output] script` in `config.toml`): `latin` (Standard) zeigt
+die kaikki-Romanisierung bzw. regelbasierte Transliteration; `native` die
+Originalschrift; `both` beide (`sophia (σοφία)`).
 
 **Beispiel Pipe-Ausgabe:**
 ```
-zeus
+sophia
 ```
 
 ### Scoring-Regeln
 
-Jeder Token der Query wird gegen alle Datensätze gewertet:
-- **Wort exakt** (Hauptwort-Match): 5.0 Punkte
-- **Wort Substring** (min. 3 Zeichen): 2.0 Punkte
-- **Tag exakt**: 3.0 Punkte
-- **Tag Substring** (min. 3 Zeichen): 1.5 Punkte
-- **System Match**: 2.0 Punkte
-- **Etymologie Substring** (min. 3 Zeichen): 1.0 Punkte
+**Stufe A — Konzepte bilden.** Jeder Query-Token ist ein Konzept (Gewicht 1.0).
+Nennt ein Token ein Wort im Bestand (beliebige Sprache), kommen dessen
+Glossen-Tokens als Brücken-Konzepte hinzu (Gewicht 0.7, max. 8 pro Token) —
+z. B. `"Baum"` → de/Baum → Konzept `"tree"`. Danach folgt der
+**Assoziations-Hop** über die Nexus-Kanten (`edges`-Tabelle: Synonyme,
+Verwandtes, Ableitungen, Gegenteile aus Wiktionary): Kanten, deren Quelle ein
+Token- oder Brücken-Konzept ist, fügen ihr Ziel als Konzept hinzu (Gewicht =
+Basisgewicht × Kantengewicht, max. 6 pro Quelle / 24 gesamt). In der Spur
+erscheint die Relation: `track → spoor (verwandt)`. Datamuse-Kandidaten
+(Online-Modus) werden mit Gewicht 0.6 angehängt.
 
-Jeder Token wertet jede Feldkategorie höchstens einmal. Die Gesamtpunktzahl wird mit dem `seed_weight` des Worts multipliziert. Sortierung: Score (DESC) → seed_weight (DESC) → Wort (ASC).
+**Stufe B — Records werten.** Jedes Konzept zählt pro Wort höchstens einmal,
+über sein stärkstes Feld:
+- **Glossen-Treffer**: `1.2 × Konzeptgewicht × IDF` — seltene Glossen-Tokens
+  zählen mehr als Füllwörter (IDF gedeckelt, damit Einzelstücke nicht dominieren)
+- **Wort-Treffer** (Konzept = Wort, nur für Brücken-/Online-Konzepte): `4.0 × Konzeptgewicht`
+- **Wort-Präfix** (Query-Token, kein exakter Match): 1.5
+- **System exakt/Präfix**: 2.0
+- **Etymologie Substring** (min. 4 Zeichen): 1.0
+
+**Echo-Filter**: Ist das Wort identisch mit einem Query-Token, wird der
+Datensatz übersprungen (außer mit `--allow-echo`, dann +5.0 wie früher).
+
+Die Gesamtpunktzahl wird mit `seed_weight`, dem **Herkunfts-Faktor**
+(alte/Ursprungssprachen la/grc/he/non/ang/goh/sa/sux/akk/egy/got/nci/yua/qu:
+×1.3, el: ×1.15, sonst ×1.0) und dem **Register-Faktor** (poetic/literary/
+figurative: ×1.15) multipliziert.
+Sortierung: Score (DESC) → seed_weight (DESC) → Wort (ASC) — vollständig
+deterministisch.
+
+Die `Treffer:`-Ausgabe zeigt den Assoziationspfad, z. B.
+`baum → tree (bruecke)` für einen Brücken-Treffer.
 
 ### Semantische Query-Expansion mit --online
 
 Mit der Flag `--online` wird die Query über die **Datamuse API** semantisch erweitert, bevor die lokale Datenbank durchsucht wird:
 
-1. Die Query wird an `api.datamuse.com/words` mit dem `ml`-Parameter (means-like) gesendet
+1. Die Query wird an `api.datamuse.com/words` mit dem `ml`-Parameter (means-like) gesendet;
+   zusätzlich werden für die ersten 3 Inhaltstoken **Assoziations-Trigger**
+   (`rel_trg`, je max. 5) geholt — statistische Assoziationen, die dem
+   „Metaphernsprung" des North Star am nächsten kommen (Fehler bei
+   Trigger-Anfragen werden still übersprungen)
 2. Datamuse antwortet mit semantisch ähnlichen Wörtern (z. B. `"forest"` → `"woodland"`, `"grove"`, `"canopy"`)
-3. Diese **Kandidaten** werden mit exaktem Wort-Match gegen die lokale Datenbank geprüft (Score +4.0)
+3. Diese **Kandidaten** fließen als Konzepte (Gewicht 0.6) in das Ranking ein
+   und treffen sowohl Wörter als auch Glossen des Bestands
 4. Gefundene Kandidaten sind im Output mit dem Label `(semantisch)` markiert
 
 **Anforderungen:**

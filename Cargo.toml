@@ -20,6 +20,7 @@ indicatif = "0.17"
 flate2 = "1"
 dirs = "5"
 console = "0.15"
+unicode-normalization = "0.1"
 
 [dev-dependencies]
 tempfile = "3"

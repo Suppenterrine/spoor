@@ -40,7 +40,8 @@ fn test_parse_realistic_noun() {
 
     let result = parse_wiktextract_line(json_line, &spec)
         .expect("failed to parse valid JSON")
-        .expect("expected Some record");
+        .expect("expected Some record")
+            .record;
 
     assert_eq!(result.id, "de_Haus");
     assert_eq!(result.word, "Haus");
@@ -109,14 +110,15 @@ fn test_parse_etymology_truncation_with_multibyte() {
     let json_obj = serde_json::json!({
         "word": "Test",
         "pos": "noun",
-        "senses": [],
+        "senses": [{"glosses": ["a trial"]}],
         "etymology_text": long_text
     });
     let json_line = json_obj.to_string();
 
     let result = parse_wiktextract_line(&json_line, &spec)
         .expect("failed to parse")
-        .expect("expected Some record");
+        .expect("expected Some record")
+            .record;
 
     assert!(result.etymology.is_some());
     let et = result.etymology.unwrap();
@@ -226,9 +228,9 @@ fn test_consume_jsonl_stops_early_at_max_words() {
     let spec = make_spec("test-early-stop", "en");
     // 3 valid nouns, then 1 verb (skippable), then 1 broken JSON (skippable-but-erroring).
     let lines = vec![
-        r#"{"word":"alpha","pos":"noun","senses":[]}"#.to_string(),
-        r#"{"word":"beta","pos":"noun","senses":[]}"#.to_string(),
-        r#"{"word":"gamma","pos":"noun","senses":[]}"#.to_string(),
+        r#"{"word":"alpha","pos":"noun","senses":[{"glosses":["first letter"]}]}"#.to_string(),
+        r#"{"word":"beta","pos":"noun","senses":[{"glosses":["second letter"]}]}"#.to_string(),
+        r#"{"word":"gamma","pos":"noun","senses":[{"glosses":["third letter"]}]}"#.to_string(),
         r#"{"word":"walk","pos":"verb","senses":[]}"#.to_string(),
         r#"{"word":"broken","pos":"noun","senses":[}"#.to_string(),
     ];
@@ -257,6 +259,7 @@ fn test_consume_jsonl_stops_early_at_max_words() {
         move |batch| {
             batches_clone.lock().unwrap().push(batch);
         },
+        |_edges| {},
     );
 
     assert_eq!(report.accepted, 2, "should stop after 2 accepted nouns");

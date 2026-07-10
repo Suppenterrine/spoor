@@ -29,6 +29,23 @@ pub struct WordRecord {
     pub source: Option<String>,
     pub etymology: Option<String>,
     pub origin_lang: Option<String>,
+    /// Latin-script romanization for non-Latin words (from kaikki `forms`);
+    /// None for words already in Latin script.
+    pub translit: Option<String>,
+    /// Register/style markers of the kept senses (comma list), e.g.
+    /// "figurative,poetic". Poetic/figurative words get a ranking boost.
+    pub registers: Option<String>,
+}
+
+/// One association edge of the concept nexus: `src --rel--> dst`.
+/// Sources: wiktextract synonyms/related/derived, later ConceptNet etc.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Edge {
+    pub src: String,
+    pub rel: String,
+    pub dst: String,
+    pub weight: f64,
+    pub source: Option<String>,
 }
 
 impl WordRecord {
@@ -57,6 +74,8 @@ impl WordRecord {
         let source = Self::non_empty(r.get(6));
         let etymology = Self::non_empty(r.get(7));
         let origin_lang = Self::non_empty(r.get(8));
+        let translit = Self::non_empty(r.get(9));
+        let registers = Self::non_empty(r.get(10));
 
         let id = if let Some(ref lang) = language {
             format!("{}_{}", lang, word)
@@ -75,12 +94,17 @@ impl WordRecord {
             source,
             etymology,
             origin_lang,
+            translit,
+            registers,
         })
     }
 }
 
-const INSERT_WORD_SQL: &str = "INSERT OR REPLACE INTO words (id, word, word_class, language, system, tags, seed_weight, source, etymology, origin_lang)
- VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)";
+const INSERT_WORD_SQL: &str = "INSERT OR REPLACE INTO words (id, word, word_class, language, system, tags, seed_weight, source, etymology, origin_lang, translit, registers)
+ VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)";
+
+const INSERT_EDGE_SQL: &str = "INSERT OR IGNORE INTO edges (src, rel, dst, weight, source)
+ VALUES (?1, ?2, ?3, ?4, ?5)";
 
 /// Execute the shared word-insert statement for one record.
 fn execute_insert(stmt: &mut rusqlite::Statement, rec: &WordRecord) -> anyhow::Result<()> {
@@ -94,7 +118,9 @@ fn execute_insert(stmt: &mut rusqlite::Statement, rec: &WordRecord) -> anyhow::R
         rec.seed_weight,
         rec.source,
         rec.etymology,
-        rec.origin_lang
+        rec.origin_lang,
+        rec.translit,
+        rec.registers
     ])
     .with_context(|| format!("failed to insert word: {}", rec.word))?;
     Ok(())
@@ -160,11 +186,88 @@ impl Db {
             )
             .context("failed to create words table")?;
 
-        // Migrate: add etymology and origin_lang columns if they don't exist
+        // Migrate: add etymology, origin_lang, translit, registers columns if they don't exist
         self.ensure_column("words", "etymology", "TEXT")?;
         self.ensure_column("words", "origin_lang", "TEXT")?;
+        self.ensure_column("words", "translit", "TEXT")?;
+        self.ensure_column("words", "registers", "TEXT")?;
+
+        // Association nexus: edges between concepts (see docs/design/llm-parity.md)
+        self.conn
+            .execute(
+                "CREATE TABLE IF NOT EXISTS edges (
+                    src TEXT NOT NULL,
+                    rel TEXT NOT NULL,
+                    dst TEXT NOT NULL,
+                    weight REAL DEFAULT 1.0,
+                    source TEXT,
+                    UNIQUE(src, rel, dst)
+                )",
+                [],
+            )
+            .context("failed to create edges table")?;
+        self.conn
+            .execute(
+                "CREATE INDEX IF NOT EXISTS idx_edges_src ON edges(src)",
+                [],
+            )
+            .context("failed to create edges index")?;
 
         Ok(())
+    }
+
+    /// Insert association edges in one transaction (duplicates are ignored).
+    pub fn insert_edges(&mut self, edges: &[Edge]) -> anyhow::Result<()> {
+        let tx = self.conn.transaction().context("failed to start edge transaction")?;
+        {
+            let mut stmt = tx
+                .prepare(INSERT_EDGE_SQL)
+                .context("failed to prepare edge insert")?;
+            for e in edges {
+                stmt.execute(params![e.src, e.rel, e.dst, e.weight, e.source])
+                    .with_context(|| format!("failed to insert edge {} -{}-> {}", e.src, e.rel, e.dst))?;
+            }
+        }
+        tx.commit().context("failed to commit edge transaction")?;
+        Ok(())
+    }
+
+    /// All outgoing edges for the given source terms (lowercased match).
+    pub fn edges_from(&self, srcs: &[String]) -> anyhow::Result<Vec<Edge>> {
+        if srcs.is_empty() {
+            return Ok(Vec::new());
+        }
+        let query = format!(
+            "SELECT src, rel, dst, weight, source FROM edges WHERE src IN ({}) ORDER BY src, rel, dst",
+            Self::in_clause(srcs.len())
+        );
+        let mut stmt = self
+            .conn
+            .prepare(&query)
+            .context("failed to prepare edges query")?;
+        let rows = stmt
+            .query_map(rusqlite::params_from_iter(srcs.iter().map(|s| s.as_str())), |row| {
+                Ok(Edge {
+                    src: row.get(0)?,
+                    rel: row.get(1)?,
+                    dst: row.get(2)?,
+                    weight: row.get(3)?,
+                    source: row.get(4)?,
+                })
+            })
+            .context("failed to query edges")?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row.context("failed to read edge row")?);
+        }
+        Ok(out)
+    }
+
+    /// Total number of edges in the nexus.
+    pub fn edge_count(&self) -> anyhow::Result<usize> {
+        self.conn
+            .query_row("SELECT COUNT(*) FROM edges", [], |row| row.get(0))
+            .context("failed to count edges")
     }
 
     pub fn insert_words(&mut self, records: &[WordRecord]) -> anyhow::Result<()> {
@@ -239,6 +342,8 @@ impl Db {
             source: row.get(7)?,
             etymology: row.get(8)?,
             origin_lang: row.get(9)?,
+            translit: row.get(10)?,
+            registers: row.get(11)?,
         })
     }
 
@@ -254,10 +359,10 @@ impl Db {
     pub fn all_records(&self, systems: Option<&[String]>) -> anyhow::Result<Vec<WordRecord>> {
         let systems = systems.unwrap_or(&[]);
         let query = if systems.is_empty() {
-            "SELECT id, word, word_class, language, system, tags, seed_weight, source, etymology, origin_lang FROM words ORDER BY id".to_string()
+            "SELECT id, word, word_class, language, system, tags, seed_weight, source, etymology, origin_lang, translit, registers FROM words ORDER BY id".to_string()
         } else {
             format!(
-                "SELECT id, word, word_class, language, system, tags, seed_weight, source, etymology, origin_lang FROM words WHERE system IN ({}) ORDER BY id",
+                "SELECT id, word, word_class, language, system, tags, seed_weight, source, etymology, origin_lang, translit, registers FROM words WHERE system IN ({}) ORDER BY id",
                 Self::in_clause(systems.len())
             )
         };
